@@ -1,0 +1,52 @@
+services:
+
+    postgres:
+        image: postgres:17
+        container_name: tournament-planner-postgres
+        restart: unless-stopped
+
+        environment:
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: postgres_dev_password
+        POSTGRES_DB: postgres
+
+        ports:
+        - "5432:5432"
+
+        volumes:
+        - postgres_data:/var/lib/postgresql/data
+        - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
+
+        healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U postgres"]
+        interval: 5s
+        timeout: 5s
+        retries: 10
+
+
+    rabbitmq:
+        image: rabbitmq:4-management
+        container_name: tournament-planner-rabbitmq
+        restart: unless-stopped
+
+        environment:
+        RABBITMQ_DEFAULT_USER: rabbitmq_dev
+        RABBITMQ_DEFAULT_PASS: rabbitmq_dev_password
+
+        ports:
+        - "5672:5672"
+        - "15672:15672"
+
+        volumes:
+        - rabbitmq_data:/var/lib/rabbitmq
+
+        healthcheck:
+        test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+        interval: 5s
+        timeout: 5s
+        retries: 10
+
+
+    volumes:
+    postgres_data:
+    rabbitmq_data:
