@@ -5,9 +5,9 @@ services:
     restart: unless-stopped
 
     environment:
-    POSTGRES_USER: postgres
-    POSTGRES_PASSWORD: postgres_dev_password
-    POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_dev_password
+      POSTGRES_DB: postgres
 
     ports:
       - '5432:5432'
@@ -17,10 +17,10 @@ services:
       - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
 
     healthcheck:
-    test: ['CMD-SHELL', 'pg_isready -U postgres']
-    interval: 5s
-    timeout: 5s
-    retries: 10
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   rabbitmq:
     image: rabbitmq:4-management
@@ -28,8 +28,8 @@ services:
     restart: unless-stopped
 
     environment:
-    RABBITMQ_DEFAULT_USER: rabbitmq_dev
-    RABBITMQ_DEFAULT_PASS: rabbitmq_dev_password
+      RABBITMQ_DEFAULT_USER: rabbitmq_dev
+      RABBITMQ_DEFAULT_PASS: rabbitmq_dev_password
 
     ports:
       - '5672:5672'
@@ -39,11 +39,11 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
 
     healthcheck:
-    test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
-    interval: 5s
-    timeout: 5s
-    retries: 10
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-  volumes:
+volumes:
   postgres_data:
   rabbitmq_data:
