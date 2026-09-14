@@ -69,10 +69,7 @@ Replace contents with:
   "version": "1.0.0",
   "private": true,
   "description": "Tournament Planner application",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
@@ -93,10 +90,12 @@ Replace contents with:
 ```
 
 Why `private: true`?
+
 - This is the root workspace, not a package to publish.
 - Prevents accidental publishing.
 
 Why npm workspaces?
+
 - You have multiple apps under `apps/*`.
 - Shared packages live under `packages/*`.
 
@@ -107,6 +106,7 @@ npm install
 ```
 
 Expected:
+
 - `package.json`
 - `package-lock.json`
 - `node_modules/`
@@ -195,6 +195,7 @@ New-Item -ItemType Directory -Force infrastructure/rabbitmq/definitions
 ### Step 10 — Create remaining root files
 
 Create empty files:
+
 - `tsconfig.base.json`
 - `.gitignore`
 - `.prettierrc`
@@ -277,6 +278,7 @@ RABBITMQ_PASSWORD=rabbitmq_dev_password
 ```
 
 Later, each service can have its own `.env.example`, e.g.:
+
 - `apps/auth-service/.env.example`
 - `apps/tournament-service/.env.example`
 
@@ -285,7 +287,9 @@ Later, each service can have its own `.env.example`, e.g.:
 ## M6.1.3 — Local Docker Infrastructure
 
 ### Goal
+
 Set up local infra for development:
+
 - PostgreSQL
 - 5 logical databases
 - 5 database users
@@ -345,6 +349,7 @@ CREATE DATABASE notification_db
 ```
 
 Why this approach?
+
 - One local PostgreSQL container.
 - Database-per-service boundary preserved:
   - Auth Service → `auth_db`
@@ -431,6 +436,7 @@ docker compose ps
 ```
 
 Expected status:
+
 - `tournament-planner-postgres` → `Up (healthy)`
 - `tournament-planner-rabbitmq` → `Up (healthy)`
 
@@ -441,6 +447,7 @@ docker exec -it tournament-planner-postgres psql -U postgres -c "\l"
 ```
 
 Expected DBs:
+
 - `auth_db`
 - `tournament_db`
 - `auction_db`
@@ -467,6 +474,7 @@ Expected DBs:
 7. If needed, right-click `Databases` → `Refresh`.
 
 You should see:
+
 - `auth_db`
 - `tournament_db`
 - `auction_db`
