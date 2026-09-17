@@ -1,5 +1,6 @@
 import { hashPassword } from "./password.js";
 import { userRepository, User } from "../users/user.repository.js";
+import { AppError } from "../../middleware/app-error.js";
 
 export type RegisterUserInput = {
     email: string;
@@ -14,10 +15,11 @@ export class AuthService {
         const email = input.email.trim().toLowerCase();
         const existingUser = await userRepository.findByEmail(email);
         if (existingUser) {
-            throw new Error('EMAIL_ALREADY_EXISTS');
+            throw new AppError('EMAIL_ALREADY_EXISTS', 409, 'An account with this email already exists.');
         }
         const passwordHash = await hashPassword(input.password);
 
+        try {
         const user = await userRepository.createUser({
             email: input.email,
             passwordHash,
@@ -27,6 +29,12 @@ export class AuthService {
 
         const { password_hash: _passwordHash, ...safeUser } = user;
         return safeUser;
+        } catch (error: unknown) {
+            if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
+            throw new AppError('EMAIL_ALREADY_EXISTS', 409, 'An account with this email already exists.');
+            }
+            throw error;
+        }
     }
 }
 
