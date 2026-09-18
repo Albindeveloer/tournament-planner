@@ -1,5 +1,9 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 
+// Load environment variables from .env file based on the current NODE_ENV {for test and development environments}. In production, environment variables should be set directly in the environment.
+dotenv.config({ 
+  path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env'
+})
 const requiredEnvVariables = [
   'NODE_ENV',
   'PORT',
