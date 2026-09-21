@@ -6,6 +6,11 @@ export const buildApp = () => {
   // Create Fastify app with built-in request logging enabled.
   const app = Fastify({
     logger: true,
+    ajv: {
+      customOptions: {
+        removeAdditional: false,
+      },
+    },
   });
 
   // Attach centralized error handling once during app setup.
