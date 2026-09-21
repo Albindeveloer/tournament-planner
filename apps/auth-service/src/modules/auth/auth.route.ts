@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { registerUser } from "./auth.controller.js";
+import { registerUser, loginUser } from "./auth.controller.js";
 
 export const authRoutes = async (app: FastifyInstance): Promise<void> => {
     app.post('/register',
@@ -8,7 +8,7 @@ export const authRoutes = async (app: FastifyInstance): Promise<void> => {
                 body: {
                     type: 'object',
                     required: ['email', 'password', 'first_name'],
-                    additionalProperties: false, // Prevents client extra properties from being sent in the request body
+                    additionalProperties: false,
                     properties: {
                         email: { type: 'string', format: 'email', maxLength: 255 },
                         password: { type: 'string', minLength: 8, maxLength: 128 },
@@ -19,5 +19,22 @@ export const authRoutes = async (app: FastifyInstance): Promise<void> => {
             },
         },
         registerUser
+    );
+
+    app.post('/login',
+        {
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['email', 'password'],
+                    additionalProperties: false,
+                    properties: {
+                        email: { type: 'string', format: 'email', maxLength: 255 },
+                        password: { type: 'string', minLength: 8, maxLength: 128 },
+                    },
+                },
+            },
+        },
+        loginUser
     );
 }

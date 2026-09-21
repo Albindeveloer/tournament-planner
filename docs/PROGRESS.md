@@ -70,13 +70,26 @@ Registration
 
 M6.4 User Registration — COMPLETED
 
+Login + JWT
+
+- [x] @fastify/jwt installed and registered in app.ts
+- [x] LoginInput type added to auth.service.ts
+- [x] loginUser method: email normalization, Argon2id verification, status check, same error for unknown email and wrong password
+- [x] loginUser controller: signs access JWT with minimal payload { sub: user.id }
+- [x] POST /login route with schema validation
+- [x] Login tests (12/12 passed): valid login, wrong password, unknown email, enumeration check, suspended, deactivated, invalid email, short password, extra fields, token sub, no password_hash, email normalization
+- [x] Typecheck passed
+- [x] Registration tests still passing (8/8)
+
+M6.5 Login + Access JWT — COMPLETED
+
 ---
 
 Current Task
 
-M6.5 — Login + JWT
+M6.6 — Refresh Token Lifecycle and Logout
 
-Begin after M6.4 completion is confirmed.
+Begin after M6.5 completion is confirmed.
 
 ---
 
