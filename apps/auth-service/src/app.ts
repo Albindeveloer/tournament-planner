@@ -17,7 +17,7 @@ export const buildApp = () => {
   registerErrorHandler(app);
 
   // Register auth routes
-  app.register(authRoutes, { prefix: 'api/v1/auth' });
+  app.register(authRoutes, { prefix: '/api/v1/auth' });
 
   // Basic health endpoint for local/dev checks and uptime probes.
   app.get('/health', async (request, reply) => {
