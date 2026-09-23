@@ -83,13 +83,30 @@ Login + JWT
 
 M6.5 Login + Access JWT — COMPLETED
 
+Refresh Token Lifecycle and Logout
+
+- [x] token.utils.ts: generateRefreshToken() (crypto.randomBytes), hashToken() (SHA-256), parseDurationToMs()
+- [x] RefreshTokenRepository: create, findByHash, revokeById, revokeAllForUser, rotateToken (transactional BEGIN/COMMIT)
+- [x] UserRepository: findById added
+- [x] loginUser extended: generates refresh token on successful login, stores hash only (never plaintext)
+- [x] refreshToken service method: validates token, reuse detection (revokes all user sessions on revoked token replay), expiry check, transactional rotation
+- [x] logoutUser service method: revokes token, idempotent (no error for unknown/already-revoked token)
+- [x] refreshToken and logout controllers added
+- [x] POST /refresh and POST /logout routes with schema validation
+- [x] vitest.config.ts: fileParallelism: false (integration tests share a database)
+- [x] Refresh/logout tests (13/13 passed)
+- [x] All 33 tests passing (8 registration + 12 login + 13 refresh/logout)
+- [x] Typecheck passed
+
+M6.6 Refresh Token Lifecycle and Logout — COMPLETED
+
 ---
 
 Current Task
 
-M6.6 — Refresh Token Lifecycle and Logout
+M6.7 — Password Reset
 
-Begin after M6.5 completion is confirmed.
+Begin after M6.6 completion is confirmed.
 
 ---
 
