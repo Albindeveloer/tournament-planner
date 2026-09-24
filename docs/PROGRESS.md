@@ -100,13 +100,30 @@ Refresh Token Lifecycle and Logout
 
 M6.6 Refresh Token Lifecycle and Logout — COMPLETED
 
+Password Reset
+
+- [x] PASSWORD_RESET_EXPIRES_IN added to env.ts, .env, .env.test, .env.example
+- [x] PasswordResetTokenRepository: create, findByHash, markAsUsed
+- [x] UserRepository: updatePassword added
+- [x] forgotPassword service method: email normalization, silent 202 for unknown emails (no enumeration), stores hash only (never plaintext)
+- [x] resetPassword service method: validates token existence, used_at, expiry; rehashes with Argon2id; marks token used; revokes all refresh sessions
+- [x] forgotPassword and resetPassword controllers added
+- [x] POST /forgot-password and POST /reset-password routes with schema validation
+- [x] Dev-mode: forgot-password returns reset_token in response for local testing (omitted in production)
+- [x] Password reset tests (11/11 passed): 202 for known/unknown email, hash-not-plaintext in DB, valid reset, new password works, old password rejected, refresh session invalidated, token reuse rejected, invalid token, password validation, token marked used_at
+- [x] All 44 tests passing (8 registration + 12 login + 13 refresh/logout + 11 password reset)
+- [x] Typecheck passed
+- [x] Manual testing guide updated (docs/manual-testing/auth-service.md)
+
+M6.7 Password Reset — COMPLETED
+
 ---
 
 Current Task
 
-M6.7 — Password Reset
+M6.8 — Auth Testing and Hardening
 
-Begin after M6.6 completion is confirmed.
+Begin after M6.7 completion is confirmed.
 
 ---
 

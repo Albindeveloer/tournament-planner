@@ -197,6 +197,22 @@ describe('POST /api/v1/auth/refresh', () => {
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe('VALIDATION_ERROR');
   });
+
+  it('should return 403 when the account is suspended after the refresh token was issued', async () => {
+    const data = await registerAndLogin();
+
+    // Suspend the account after the session was established.
+    await pool.query(`UPDATE users SET status = 'SUSPENDED' WHERE id = $1`, [data.user.id]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/refresh',
+      payload: { refresh_token: data.refresh_token },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error.code).toBe('ACCOUNT_INACTIVE');
+  });
 });
 
 describe('POST /api/v1/auth/logout', () => {

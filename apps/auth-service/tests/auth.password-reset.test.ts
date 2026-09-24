@@ -250,6 +250,25 @@ describe('POST /api/v1/auth/reset-password', () => {
     expect(response.statusCode).toBe(400);
   });
 
+  it('should reject an expired reset token', async () => {
+    await registerUser();
+    const plaintext = await authService.forgotPassword('player@example.com');
+
+    // Manually expire the token in the database.
+    await pool.query(
+      `UPDATE password_reset_tokens SET expires_at = NOW() - INTERVAL '1 second'`,
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/reset-password',
+      payload: { token: plaintext, new_password: NEW_PASSWORD },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('INVALID_RESET_TOKEN');
+  });
+
   it('should mark the reset token as used in the database after successful reset', async () => {
     await registerUser();
     const plaintext = await authService.forgotPassword('player@example.com');

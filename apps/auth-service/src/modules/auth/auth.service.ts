@@ -151,6 +151,21 @@ export class AuthService {
     await refreshTokenRepository.revokeAllForUser(record.user_id);
   }
 
+  async getMe(userId: string): Promise<SafeUser> {
+    const user = await userRepository.findById(userId);
+
+    if (!user) {
+      throw new AppError('UNAUTHORIZED', 401, 'Authentication required');
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new AppError('ACCOUNT_INACTIVE', 403, 'Your account is not active');
+    }
+
+    const { password_hash: _, ...safeUser } = user;
+    return safeUser;
+  }
+
   async registerUser(input: RegisterUserInput): Promise<SafeUser> {
     const email = input.email.trim().toLowerCase();
     const existingUser = await userRepository.findByEmail(email);

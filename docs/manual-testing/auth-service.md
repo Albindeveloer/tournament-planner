@@ -116,7 +116,47 @@
 
 ---
 
-## 3. Refresh Token
+## 3. Get Current User (GET /me)
+
+**GET** `/api/v1/auth/me`
+
+Set the `Authorization` header to `Bearer <access_token from login>`.
+
+**Expected:** `200 OK`
+
+```json
+{
+  "data": {
+    "user": {
+      "id": "<uuid>",
+      "email": "player@example.com",
+      "first_name": "Player",
+      "last_name": "One",
+      "status": "ACTIVE",
+      "email_verified": false,
+      "last_login_at": null,
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**Verify:**
+- No `password_hash` or `password` in the response
+- The `id` matches the one returned by login
+
+**Error cases:**
+
+| Input | Expected |
+|---|---|
+| No `Authorization` header | `401 UNAUTHORIZED` |
+| `Authorization: Bearer invalid.token.here` | `401 UNAUTHORIZED` |
+| Valid token, but account suspended in DB | `403 ACCOUNT_INACTIVE` |
+
+---
+
+## 4. Refresh Token
 
 **POST** `/api/v1/auth/refresh`
 
@@ -349,15 +389,16 @@ Attempt to use the same reset token a second time:
 
 ---
 
-## 6. Full Flow (Happy Path)
+## 7. Full Flow (Happy Path)
 
 Run through the complete auth lifecycle end-to-end:
 
 ```
 POST /register              → 201
 POST /login                 → 200, save access_token + refresh_token
+GET  /me                    → 200, user returned (Bearer access_token)
 POST /refresh               → 200, save new access_token + new refresh_token
-POST /refresh               → 200, rotate again
+GET  /me                    → 200, still works with new access_token
 POST /logout                → 204
 POST /refresh               → 401  (session ended)
 ```
@@ -376,7 +417,7 @@ POST /reset-password        → 400  (token already used)
 
 ---
 
-## 7. Health Check
+## 8. Health Check
 
 **GET** `http://localhost:3001/health`
 

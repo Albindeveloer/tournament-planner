@@ -1,6 +1,15 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { authService, RegisterUserInput, LoginInput } from './auth.service.js';
 import { env } from '../../config/env.js';
+import { AppError } from '../../middleware/app-error.js';
+
+// Extend @fastify/jwt types so request.user is typed after jwtVerify().
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
+    payload: { sub: string; exp?: number; iat?: number };
+    user: { sub: string };
+  }
+}
 
 type RegisterRequest = {
   Body: RegisterUserInput;
@@ -111,4 +120,18 @@ export const resetPassword = async (
 ): Promise<void> => {
   await authService.resetPassword(request.body.token, request.body.new_password);
   await reply.status(200).send({ data: { message: 'Password has been reset successfully' } });
+};
+
+export const getMeHandler = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> => {
+  try {
+    await request.jwtVerify();
+  } catch {
+    throw new AppError('UNAUTHORIZED', 401, 'Authentication required');
+  }
+
+  const user = await authService.getMe(request.user.sub);
+  await reply.status(200).send({ data: { user } });
 };

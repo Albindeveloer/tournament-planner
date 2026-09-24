@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { registerUser, loginUser, refreshToken, logout, forgotPassword, resetPassword } from './auth.controller.js';
+import { registerUser, loginUser, refreshToken, logout, forgotPassword, resetPassword, getMeHandler } from './auth.controller.js';
 
 export const authRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post(
@@ -108,4 +108,7 @@ export const authRoutes = async (app: FastifyInstance): Promise<void> => {
     },
     resetPassword,
   );
+
+  // No body schema — authentication is via Authorization: Bearer <access_token>.
+  app.get('/me', getMeHandler);
 };
