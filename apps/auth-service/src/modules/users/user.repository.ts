@@ -35,6 +35,13 @@ export class UserRepository {
         return result.rows[0] ?? null;
     }
 
+    async updatePassword(userId: string, passwordHash: string): Promise<void> {
+        await pool.query(
+            `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+            [passwordHash, userId],
+        );
+    }
+
     async createUser(params: {
         email: string;
         passwordHash: string;

@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { registerUser, loginUser, refreshToken, logout } from './auth.controller.js';
+import { registerUser, loginUser, refreshToken, logout, forgotPassword, resetPassword } from './auth.controller.js';
 
 export const authRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post(
@@ -72,5 +72,40 @@ export const authRoutes = async (app: FastifyInstance): Promise<void> => {
       },
     },
     logout,
+  );
+
+  app.post(
+    '/forgot-password',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['email'],
+          additionalProperties: false,
+          properties: {
+            email: { type: 'string', format: 'email', maxLength: 255 },
+          },
+        },
+      },
+    },
+    forgotPassword,
+  );
+
+  app.post(
+    '/reset-password',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['token', 'new_password'],
+          additionalProperties: false,
+          properties: {
+            token: { type: 'string', minLength: 1 },
+            new_password: { type: 'string', minLength: 8, maxLength: 128 },
+          },
+        },
+      },
+    },
+    resetPassword,
   );
 };

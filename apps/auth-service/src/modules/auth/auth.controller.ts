@@ -18,6 +18,14 @@ type LogoutRequest = {
   Body: { refresh_token: string };
 };
 
+type ForgotPasswordRequest = {
+  Body: { email: string };
+};
+
+type ResetPasswordRequest = {
+  Body: { token: string; new_password: string };
+};
+
 export const registerUser = async (
   request: FastifyRequest<RegisterRequest>,
   reply: FastifyReply,
@@ -79,4 +87,28 @@ export const logout = async (
 ): Promise<void> => {
   await authService.logoutUser(request.body.refresh_token);
   await reply.status(204).send();
+};
+
+export const forgotPassword = async (
+  request: FastifyRequest<ForgotPasswordRequest>,
+  reply: FastifyReply,
+): Promise<void> => {
+  const plaintext = await authService.forgotPassword(request.body.email);
+
+  // In production, the token would be emailed — never returned in the response.
+  // In development, expose it so the flow can be tested without an email service.
+  if (env.nodeEnv === 'development' && plaintext !== null) {
+    await reply.status(202).send({ data: { reset_token: plaintext } });
+    return;
+  }
+
+  await reply.status(202).send();
+};
+
+export const resetPassword = async (
+  request: FastifyRequest<ResetPasswordRequest>,
+  reply: FastifyReply,
+): Promise<void> => {
+  await authService.resetPassword(request.body.token, request.body.new_password);
+  await reply.status(200).send({ data: { message: 'Password has been reset successfully' } });
 };

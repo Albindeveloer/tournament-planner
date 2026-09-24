@@ -1,6 +1,7 @@
 import { hashPassword, verifyPassword } from './password.js';
 import { userRepository, User } from '../users/user.repository.js';
 import { refreshTokenRepository } from '../refresh-tokens/refresh-token.repository.js';
+import { passwordResetTokenRepository } from '../password-reset-tokens/password-reset-token.repository.js';
 import { generateRefreshToken, hashToken, parseDurationToMs } from './token.utils.js';
 import { AppError } from '../../middleware/app-error.js';
 import { env } from '../../config/env.js';
@@ -103,6 +104,51 @@ export class AuthService {
     }
 
     await refreshTokenRepository.revokeById(record.id);
+  }
+
+  // Returns the plaintext token so it can be delivered (e.g. via email) by the caller.
+  // Always resolves — never reveals whether the email exists.
+  async forgotPassword(email: string): Promise<string | null> {
+    const normalized = email.trim().toLowerCase();
+    const user = await userRepository.findByEmail(normalized);
+
+    if (!user) {
+      return null;
+    }
+
+    const { plaintext, hash } = generateRefreshToken();
+    const expiresAt = new Date(Date.now() + parseDurationToMs(env.passwordResetExpiresIn));
+
+    await passwordResetTokenRepository.create({
+      userId: user.id,
+      tokenHash: hash,
+      expiresAt,
+    });
+
+    return plaintext;
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const hash = hashToken(token);
+    const record = await passwordResetTokenRepository.findByHash(hash);
+
+    if (!record) {
+      throw new AppError('INVALID_RESET_TOKEN', 400, 'Invalid or expired password reset token');
+    }
+
+    if (record.used_at !== null) {
+      throw new AppError('INVALID_RESET_TOKEN', 400, 'Invalid or expired password reset token');
+    }
+
+    if (new Date() > record.expires_at) {
+      throw new AppError('INVALID_RESET_TOKEN', 400, 'Invalid or expired password reset token');
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+
+    await userRepository.updatePassword(record.user_id, passwordHash);
+    await passwordResetTokenRepository.markAsUsed(record.id);
+    await refreshTokenRepository.revokeAllForUser(record.user_id);
   }
 
   async registerUser(input: RegisterUserInput): Promise<SafeUser> {
