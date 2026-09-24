@@ -25,6 +25,23 @@ export class UserRepository {
         return result.rows[0] || null;
     }
 
+    async findById(id: string): Promise<User | null> {
+        const result = await pool.query<User>(
+            `SELECT id, email, password_hash, first_name, last_name, status, email_verified, last_login_at, created_at, updated_at
+            FROM users
+            WHERE id = $1`,
+            [id],
+        );
+        return result.rows[0] ?? null;
+    }
+
+    async updatePassword(userId: string, passwordHash: string): Promise<void> {
+        await pool.query(
+            `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+            [passwordHash, userId],
+        );
+    }
+
     async createUser(params: {
         email: string;
         passwordHash: string;

@@ -83,13 +83,63 @@ Login + JWT
 
 M6.5 Login + Access JWT — COMPLETED
 
+Refresh Token Lifecycle and Logout
+
+- [x] token.utils.ts: generateRefreshToken() (crypto.randomBytes), hashToken() (SHA-256), parseDurationToMs()
+- [x] RefreshTokenRepository: create, findByHash, revokeById, revokeAllForUser, rotateToken (transactional BEGIN/COMMIT)
+- [x] UserRepository: findById added
+- [x] loginUser extended: generates refresh token on successful login, stores hash only (never plaintext)
+- [x] refreshToken service method: validates token, reuse detection (revokes all user sessions on revoked token replay), expiry check, transactional rotation
+- [x] logoutUser service method: revokes token, idempotent (no error for unknown/already-revoked token)
+- [x] refreshToken and logout controllers added
+- [x] POST /refresh and POST /logout routes with schema validation
+- [x] vitest.config.ts: fileParallelism: false (integration tests share a database)
+- [x] Refresh/logout tests (13/13 passed)
+- [x] All 33 tests passing (8 registration + 12 login + 13 refresh/logout)
+- [x] Typecheck passed
+
+M6.6 Refresh Token Lifecycle and Logout — COMPLETED
+
+Password Reset
+
+- [x] PASSWORD_RESET_EXPIRES_IN added to env.ts, .env, .env.test, .env.example
+- [x] PasswordResetTokenRepository: create, findByHash, markAsUsed
+- [x] UserRepository: updatePassword added
+- [x] forgotPassword service method: email normalization, silent 202 for unknown emails (no enumeration), stores hash only (never plaintext)
+- [x] resetPassword service method: validates token existence, used_at, expiry; rehashes with Argon2id; marks token used; revokes all refresh sessions
+- [x] forgotPassword and resetPassword controllers added
+- [x] POST /forgot-password and POST /reset-password routes with schema validation
+- [x] Dev-mode: forgot-password returns reset_token in response for local testing (omitted in production)
+- [x] Password reset tests (11/11 passed): 202 for known/unknown email, hash-not-plaintext in DB, valid reset, new password works, old password rejected, refresh session invalidated, token reuse rejected, invalid token, password validation, token marked used_at
+- [x] All 44 tests passing (8 registration + 12 login + 13 refresh/logout + 11 password reset)
+- [x] Typecheck passed
+- [x] Manual testing guide updated (docs/manual-testing/auth-service.md)
+
+M6.7 Password Reset — COMPLETED
+
+Auth Testing and Hardening
+
+- [x] GET /me endpoint: getMe() in auth.service.ts, getMeHandler in auth.controller.ts, GET /me route registered in auth.route.ts
+- [x] @fastify/jwt module augmentation: request.user.sub typed correctly after jwtVerify()
+- [x] auth.me.test.ts (7 tests): valid token, no password_hash, no auth header, malformed token, expired token, wrong-secret token, suspended account after token issuance
+- [x] auth.refresh-logout.test.ts: added suspended account during refresh test (account suspended after session established → 403 ACCOUNT_INACTIVE)
+- [x] auth.password-reset.test.ts: added expired reset token test (manually expires token in DB → 400 INVALID_RESET_TOKEN)
+- [x] auth.integration.test.ts: Flow A (Register → Login → GET /me → Refresh → GET /me → Logout → Refresh fails), Flow B (Register → Login → Reset Password → old session invalid → old password rejected → new password works)
+- [x] All tests passing
+- [x] Typecheck passed
+- [x] Manual testing guide updated with Postman setup section (docs/manual-testing/auth-service.md)
+
+M6.8 Auth Testing and Hardening — COMPLETED
+
 ---
 
 Current Task
 
-M6.6 — Refresh Token Lifecycle and Logout
+M7 — API Gateway
 
-Begin after M6.5 completion is confirmed.
+Auth Service is complete. Next milestone is the API Gateway.
+
+---
 
 ---
 

@@ -12,6 +12,7 @@ const requiredEnvVariables = [
   'JWT_ACCESS_EXPIRES_IN',
   'JWT_REFRESH_SECRET',
   'JWT_REFRESH_EXPIRES_IN',
+  'PASSWORD_RESET_EXPIRES_IN',
   'RABBITMQ_URL',
 ] as const;
 
@@ -29,6 +30,7 @@ export const env = {
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN!,
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET!,
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN!,
+  passwordResetExpiresIn: process.env.PASSWORD_RESET_EXPIRES_IN!,
   rabbitmqUrl: process.env.RABBITMQ_URL!,
 };
 

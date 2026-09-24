@@ -1,40 +1,114 @@
-import { FastifyInstance } from "fastify";
-import { registerUser, loginUser } from "./auth.controller.js";
+import { FastifyInstance } from 'fastify';
+import { registerUser, loginUser, refreshToken, logout, forgotPassword, resetPassword, getMeHandler } from './auth.controller.js';
 
 export const authRoutes = async (app: FastifyInstance): Promise<void> => {
-    app.post('/register',
-        {
-            schema: {
-                body: {
-                    type: 'object',
-                    required: ['email', 'password', 'first_name'],
-                    additionalProperties: false,
-                    properties: {
-                        email: { type: 'string', format: 'email', maxLength: 255 },
-                        password: { type: 'string', minLength: 8, maxLength: 128 },
-                        first_name: { type: 'string', minLength: 1, maxLength: 100 },
-                        last_name: { type: 'string', maxLength: 100 },
-                    },
-                },
-            },
+  app.post(
+    '/register',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['email', 'password', 'first_name'],
+          additionalProperties: false,
+          properties: {
+            email: { type: 'string', format: 'email', maxLength: 255 },
+            password: { type: 'string', minLength: 8, maxLength: 128 },
+            first_name: { type: 'string', minLength: 1, maxLength: 100 },
+            last_name: { type: 'string', maxLength: 100 },
+          },
         },
-        registerUser
-    );
+      },
+    },
+    registerUser,
+  );
 
-    app.post('/login',
-        {
-            schema: {
-                body: {
-                    type: 'object',
-                    required: ['email', 'password'],
-                    additionalProperties: false,
-                    properties: {
-                        email: { type: 'string', format: 'email', maxLength: 255 },
-                        password: { type: 'string', minLength: 8, maxLength: 128 },
-                    },
-                },
-            },
+  app.post(
+    '/login',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['email', 'password'],
+          additionalProperties: false,
+          properties: {
+            email: { type: 'string', format: 'email', maxLength: 255 },
+            password: { type: 'string', minLength: 8, maxLength: 128 },
+          },
         },
-        loginUser
-    );
-}
+      },
+    },
+    loginUser,
+  );
+
+  app.post(
+    '/refresh',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['refresh_token'],
+          additionalProperties: false,
+          properties: {
+            refresh_token: { type: 'string', minLength: 1 },
+          },
+        },
+      },
+    },
+    refreshToken,
+  );
+
+  app.post(
+    '/logout',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['refresh_token'],
+          additionalProperties: false,
+          properties: {
+            refresh_token: { type: 'string', minLength: 1 },
+          },
+        },
+      },
+    },
+    logout,
+  );
+
+  app.post(
+    '/forgot-password',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['email'],
+          additionalProperties: false,
+          properties: {
+            email: { type: 'string', format: 'email', maxLength: 255 },
+          },
+        },
+      },
+    },
+    forgotPassword,
+  );
+
+  app.post(
+    '/reset-password',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['token', 'new_password'],
+          additionalProperties: false,
+          properties: {
+            token: { type: 'string', minLength: 1 },
+            new_password: { type: 'string', minLength: 8, maxLength: 128 },
+          },
+        },
+      },
+    },
+    resetPassword,
+  );
+
+  // No body schema — authentication is via Authorization: Bearer <access_token>.
+  app.get('/me', getMeHandler);
+};
