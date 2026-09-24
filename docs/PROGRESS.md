@@ -117,13 +117,29 @@ Password Reset
 
 M6.7 Password Reset — COMPLETED
 
+Auth Testing and Hardening
+
+- [x] GET /me endpoint: getMe() in auth.service.ts, getMeHandler in auth.controller.ts, GET /me route registered in auth.route.ts
+- [x] @fastify/jwt module augmentation: request.user.sub typed correctly after jwtVerify()
+- [x] auth.me.test.ts (7 tests): valid token, no password_hash, no auth header, malformed token, expired token, wrong-secret token, suspended account after token issuance
+- [x] auth.refresh-logout.test.ts: added suspended account during refresh test (account suspended after session established → 403 ACCOUNT_INACTIVE)
+- [x] auth.password-reset.test.ts: added expired reset token test (manually expires token in DB → 400 INVALID_RESET_TOKEN)
+- [x] auth.integration.test.ts: Flow A (Register → Login → GET /me → Refresh → GET /me → Logout → Refresh fails), Flow B (Register → Login → Reset Password → old session invalid → old password rejected → new password works)
+- [x] All tests passing
+- [x] Typecheck passed
+- [x] Manual testing guide updated with Postman setup section (docs/manual-testing/auth-service.md)
+
+M6.8 Auth Testing and Hardening — COMPLETED
+
 ---
 
 Current Task
 
-M6.8 — Auth Testing and Hardening
+M7 — API Gateway
 
-Begin after M6.7 completion is confirmed.
+Auth Service is complete. Next milestone is the API Gateway.
+
+---
 
 ---
 
