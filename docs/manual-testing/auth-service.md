@@ -22,6 +22,224 @@
 
 ---
 
+## Postman Setup
+
+### 1. Create an Environment
+
+In Postman: **Environments → +** (New Environment). Name it `Auth Service Local`.
+
+Add these variables:
+
+| Variable | Initial Value | Current Value |
+|---|---|---|
+| `base_url` | `http://localhost:3001` | `http://localhost:3001` |
+| `access_token` | *(leave empty)* | *(filled automatically after login)* |
+| `refresh_token` | *(leave empty)* | *(filled automatically after login)* |
+| `reset_token` | *(leave empty)* | *(filled automatically after forgot-password)* |
+
+Click **Save**, then select this environment from the dropdown in the top-right corner of Postman.
+
+---
+
+### 2. Create a Collection
+
+Click **Collections → +** → **Blank Collection**. Name it `Auth Service`.
+
+Add each request below to this collection. All URLs use `{{base_url}}` so you never hardcode the port.
+
+---
+
+### 3. Saving Tokens Automatically
+
+In newer Postman (v10+): open a request → click the **Scripts** tab → click **Post-response**.
+
+In older Postman: open a request → click the **Tests** tab.
+
+Paste the script there. It runs automatically after every response and saves the tokens into your environment variables — no manual copy-pasting needed.
+
+---
+
+### 4. Requests
+
+#### Register
+
+| Field | Value |
+|---|---|
+| Method | `POST` |
+| URL | `{{base_url}}/api/v1/auth/register` |
+| Body (raw JSON) | see below |
+
+```json
+{
+  "email": "player@example.com",
+  "password": "SecurePassword123!",
+  "first_name": "Player",
+  "last_name": "One"
+}
+```
+
+Expected: `201 Created`
+
+---
+
+#### Login
+
+| Field | Value |
+|---|---|
+| Method | `POST` |
+| URL | `{{base_url}}/api/v1/auth/login` |
+| Body (raw JSON) | see below |
+
+```json
+{
+  "email": "player@example.com",
+  "password": "SecurePassword123!"
+}
+```
+
+**Scripts → Post-response** (saves tokens automatically):
+
+```javascript
+const body = pm.response.json();
+pm.environment.set("access_token", body.data.access_token);
+pm.environment.set("refresh_token", body.data.refresh_token);
+```
+
+Expected: `200 OK` — check the response contains `access_token`, `refresh_token`, `token_type: "Bearer"`, no `password_hash`.
+
+**Tip:** Copy the `access_token` and paste it into [jwt.io](https://jwt.io). The decoded payload should contain only `sub` (user UUID), `iat`, and `exp`. No email, name, or roles.
+
+---
+
+#### GET /me
+
+| Field | Value |
+|---|---|
+| Method | `GET` |
+| URL | `{{base_url}}/api/v1/auth/me` |
+| Authorization tab | Type: **Bearer Token**, Token: `{{access_token}}` |
+
+Expected: `200 OK` — same user object as login, no `password_hash`.
+
+To test the error case: clear the Authorization field → expect `401 UNAUTHORIZED`.
+
+---
+
+#### Refresh
+
+| Field | Value |
+|---|---|
+| Method | `POST` |
+| URL | `{{base_url}}/api/v1/auth/refresh` |
+| Body (raw JSON) | see below |
+
+```json
+{
+  "refresh_token": "{{refresh_token}}"
+}
+```
+
+**Scripts → Post-response** (saves the new rotated tokens):
+
+```javascript
+const body = pm.response.json();
+pm.environment.set("access_token", body.data.access_token);
+pm.environment.set("refresh_token", body.data.refresh_token);
+```
+
+Expected: `200 OK` — brand-new `access_token` and `refresh_token`.
+
+---
+
+#### Logout
+
+| Field | Value |
+|---|---|
+| Method | `POST` |
+| URL | `{{base_url}}/api/v1/auth/logout` |
+| Body (raw JSON) | see below |
+
+```json
+{
+  "refresh_token": "{{refresh_token}}"
+}
+```
+
+Expected: `204 No Content` (empty body).
+
+After this, run Refresh again with the same token — you should get `401 INVALID_REFRESH_TOKEN`.
+
+---
+
+#### Forgot Password
+
+| Field | Value |
+|---|---|
+| Method | `POST` |
+| URL | `{{base_url}}/api/v1/auth/forgot-password` |
+| Body (raw JSON) | see below |
+
+```json
+{
+  "email": "player@example.com"
+}
+```
+
+**Scripts → Post-response** (saves the reset token — dev mode only):
+
+```javascript
+const body = pm.response.json();
+if (body.data && body.data.reset_token) {
+  pm.environment.set("reset_token", body.data.reset_token);
+}
+```
+
+Expected: `202 Accepted`. In development mode the response body includes `data.reset_token`. In production the body is empty (token is delivered by email).
+
+---
+
+#### Reset Password
+
+| Field | Value |
+|---|---|
+| Method | `POST` |
+| URL | `{{base_url}}/api/v1/auth/reset-password` |
+| Body (raw JSON) | see below |
+
+```json
+{
+  "token": "{{reset_token}}",
+  "new_password": "NewSecurePassword456!"
+}
+```
+
+Expected: `200 OK` with `"message": "Password has been reset successfully"`.
+
+---
+
+### 5. Suggested Testing Order
+
+Run the requests in this sequence to walk the complete auth lifecycle:
+
+```
+1.  Register
+2.  Login                         → tokens saved to environment
+3.  GET /me                       → 200, user returned
+4.  Refresh                       → new tokens saved
+5.  GET /me                       → 200, new access_token works
+6.  Logout
+7.  Refresh                       → 401 (session ended)
+8.  Login again                   → new session
+9.  Forgot Password               → reset_token saved
+10. Reset Password
+11. Login (old password)          → 401
+12. Login (new password)          → 200
+13. Refresh (pre-reset token)     → 401 (revoked by reset)
+14. Reset Password (same token)   → 400 (one-time use only)
+```
+
+---
+
 ## 1. Register a User
 
 **POST** `/api/v1/auth/register`
@@ -214,7 +432,7 @@ This simulates a stolen token being replayed after rotation.
 
 ---
 
-## 4. Logout
+## 5. Logout
 
 **POST** `/api/v1/auth/logout`
 
@@ -255,7 +473,7 @@ Call logout a second time with the same already-revoked token:
 
 ---
 
-## 5. Password Reset
+## 6. Password Reset
 
 ### 5.1 Forgot Password
 
@@ -389,7 +607,7 @@ Attempt to use the same reset token a second time:
 
 ---
 
-## 7. Full Flow (Happy Path)
+## 7. Full Flow (Reference)
 
 Run through the complete auth lifecycle end-to-end:
 
