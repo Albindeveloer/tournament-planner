@@ -131,13 +131,36 @@ Auth Testing and Hardening
 
 M6.8 Auth Testing and Hardening — COMPLETED
 
+API Gateway Foundation
+
+- [x] Fastify application setup
+- [x] Server setup with graceful shutdown
+- [x] Health endpoint (GET /health)
+- [x] Error handling foundation (AppError, error-handler)
+- [x] TypeScript config
+- [x] Environment config with all 5 service URLs validated at startup
+
+M7.1 Gateway Foundation — COMPLETED
+M7.2 Gateway Configuration — COMPLETED (folded into M7.1)
+
+Request Routing
+
+- [x] @fastify/http-proxy installed
+- [x] registerProxyRoutes: all 5 service prefixes registered
+- [x] /api/v1/auth/* → Auth Service (strips prefix, forwards to upstream /*)
+- [x] /api/v1/tournaments/* → Tournament Service
+- [x] /api/v1/auctions/* → Auction Service
+- [x] /api/v1/competitions/* → Competition Service
+- [x] /api/v1/notifications/* → Notification Service
+- [x] Typecheck passed
+
+M7.3 Request Routing — COMPLETED
+
 ---
 
 Current Task
 
-M7 — API Gateway
-
-Auth Service is complete. Next milestone is the API Gateway.
+M7.4 — Authentication Middleware
 
 ---
 

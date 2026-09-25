@@ -1,7 +1,8 @@
 import Fastify from 'fastify';
 import { registerErrorHandler } from './middleware/error-handler.js';
+import { registerProxyRoutes } from './routes/proxy.js';
 
-export const buildApp = () => {
+export const buildApp = async () => {
   const app = Fastify({
     logger: true,
     // Generate a UUID per request instead of Fastify's default sequential integer.
@@ -24,6 +25,8 @@ export const buildApp = () => {
       },
     };
   });
+
+  await registerProxyRoutes(app);
 
   return app;
 };

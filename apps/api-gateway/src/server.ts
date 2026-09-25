@@ -2,7 +2,7 @@ import { buildApp } from './app.js';
 import { env } from './config/env.js';
 
 const start = async (): Promise<void> => {
-  const app = buildApp();
+  const app = await buildApp();
 
   // Graceful shutdown — close Fastify cleanly on termination signals.
   const shutdown = async (signal: string): Promise<void> => {
