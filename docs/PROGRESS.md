@@ -154,13 +154,25 @@ Request Routing
 - [x] /api/v1/notifications/* → Notification Service
 - [x] Typecheck passed
 
-M7.3 Request Routing — COMPLETED
+M7.3 Request Routing — COMPLETED (rewritePrefix bug fixed: preserve full path)
+
+Authentication Middleware
+
+- [x] @fastify/jwt registered in app.ts with JWT_ACCESS_SECRET
+- [x] request.userId decorator registered (null before auth, userId after)
+- [x] authenticate hook: skips public paths, calls jwtVerify(), sets request.userId
+- [x] Public paths: /health, /api/v1/auth/register, login, refresh, forgot-password, reset-password
+- [x] All other routes require a valid access token (401 UNAUTHORIZED if missing/invalid)
+- [x] rewriteRequestHeaders: injects x-user-id header for downstream services on authenticated requests
+- [x] Global preHandler hook — applies to all proxy routes, one central location
+
+M7.4 Authentication Middleware — COMPLETED
 
 ---
 
 Current Task
 
-M7.4 — Authentication Middleware
+M7.5 — Request ID / Correlation
 
 ---
 

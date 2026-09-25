@@ -20,9 +20,20 @@ export const registerProxyRoutes = async (app: FastifyInstance): Promise<void> =
     await app.register(httpProxy, {
       upstream: route.upstream,
       prefix: route.prefix,
-      // Strip the gateway prefix before forwarding.
-      // /api/v1/auth/login → upstream /login
-      rewritePrefix: '',
+      // Preserve the full path when forwarding.
+      // Upstream services register routes at the same /api/v1/* prefix.
+      // e.g. /api/v1/auth/login → http://auth-service/api/v1/auth/login
+      rewritePrefix: route.prefix,
+      replyOptions: {
+        // Forward the authenticated user's ID so downstream services can
+        // identify the caller without needing to verify JWTs themselves.
+        rewriteRequestHeaders: (request, headers) => {
+          if (request.userId) {
+            return { ...headers, 'x-user-id': request.userId };
+          }
+          return headers;
+        },
+      },
     });
   }
 };
