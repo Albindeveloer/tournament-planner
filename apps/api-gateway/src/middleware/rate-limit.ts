@@ -26,13 +26,5 @@ export const registerRateLimit = async (app: FastifyInstance): Promise<void> => 
       const path = request.url.split('?')[0] ?? '';
       return !RATE_LIMITED_PATHS.has(path);
     },
-    // Match the standard API error contract used across all gateway responses.
-    errorResponseBuilder: (_request, context) => ({
-      error: {
-        code: 'RATE_LIMIT_EXCEEDED',
-        message: `Too many requests. Please try again in ${context.after}.`,
-        details: null,
-      },
-    }),
   });
 };

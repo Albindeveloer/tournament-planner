@@ -3,10 +3,15 @@ import fastifyJwt from '@fastify/jwt';
 import { registerErrorHandler } from './middleware/error-handler.js';
 import { registerRateLimit } from './middleware/rate-limit.js';
 import { authenticate } from './middleware/authenticate.js';
-import { registerProxyRoutes } from './routes/proxy.js';
+import { registerProxyRoutes, ServiceUrls } from './routes/proxy.js';
 import { env } from './config/env.js';
 
-export const buildApp = async () => {
+export interface AppOptions {
+  // Tests pass fake upstream URLs here; production uses env defaults.
+  serviceUrls?: Partial<ServiceUrls>;
+}
+
+export const buildApp = async (options?: AppOptions) => {
   const app = Fastify({
     logger: true,
     // Generate a UUID per request instead of Fastify's default sequential integer.
@@ -48,7 +53,15 @@ export const buildApp = async () => {
     };
   });
 
-  await registerProxyRoutes(app);
+  const urls: ServiceUrls = {
+    auth: options?.serviceUrls?.auth ?? env.authServiceUrl,
+    tournament: options?.serviceUrls?.tournament ?? env.tournamentServiceUrl,
+    auction: options?.serviceUrls?.auction ?? env.auctionServiceUrl,
+    competition: options?.serviceUrls?.competition ?? env.competitionServiceUrl,
+    notification: options?.serviceUrls?.notification ?? env.notificationServiceUrl,
+  };
+
+  await registerProxyRoutes(app, urls);
 
   return app;
 };

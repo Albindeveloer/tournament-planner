@@ -1,22 +1,29 @@
 import type { IncomingHttpHeaders } from 'node:http';
 import { FastifyInstance } from 'fastify';
 import httpProxy from '@fastify/http-proxy';
-import { env } from '../config/env.js';
+
+export interface ServiceUrls {
+  auth: string;
+  tournament: string;
+  auction: string;
+  competition: string;
+  notification: string;
+}
 
 interface ProxyRoute {
   prefix: string;
   upstream: string;
 }
 
-const routes: ProxyRoute[] = [
-  { prefix: '/api/v1/auth', upstream: env.authServiceUrl },
-  { prefix: '/api/v1/tournaments', upstream: env.tournamentServiceUrl },
-  { prefix: '/api/v1/auctions', upstream: env.auctionServiceUrl },
-  { prefix: '/api/v1/competitions', upstream: env.competitionServiceUrl },
-  { prefix: '/api/v1/notifications', upstream: env.notificationServiceUrl },
-];
+export const registerProxyRoutes = async (app: FastifyInstance, urls: ServiceUrls): Promise<void> => {
+  const routes: ProxyRoute[] = [
+    { prefix: '/api/v1/auth', upstream: urls.auth },
+    { prefix: '/api/v1/tournaments', upstream: urls.tournament },
+    { prefix: '/api/v1/auctions', upstream: urls.auction },
+    { prefix: '/api/v1/competitions', upstream: urls.competition },
+    { prefix: '/api/v1/notifications', upstream: urls.notification },
+  ];
 
-export const registerProxyRoutes = async (app: FastifyInstance): Promise<void> => {
   for (const route of routes) {
     await app.register(httpProxy, {
       upstream: route.upstream,

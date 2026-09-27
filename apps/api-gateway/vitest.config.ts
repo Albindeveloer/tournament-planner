@@ -7,5 +7,7 @@ export default defineConfig({
     clearMocks: true,
     // Gateway tests mock upstream services — files can run in parallel.
     fileParallelism: true,
+    // Windows + parallel Fastify instances need more headroom than the 5s default.
+    testTimeout: 15000,
   },
 });
