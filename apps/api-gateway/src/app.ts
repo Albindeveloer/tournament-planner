@@ -1,0 +1,67 @@
+import Fastify from 'fastify';
+import fastifyJwt from '@fastify/jwt';
+import { registerErrorHandler } from './middleware/error-handler.js';
+import { registerRateLimit } from './middleware/rate-limit.js';
+import { authenticate } from './middleware/authenticate.js';
+import { registerProxyRoutes, ServiceUrls } from './routes/proxy.js';
+import { env } from './config/env.js';
+
+export interface AppOptions {
+  // Tests pass fake upstream URLs here; production uses env defaults.
+  serviceUrls?: Partial<ServiceUrls>;
+}
+
+export const buildApp = async (options?: AppOptions) => {
+  const app = Fastify({
+    logger: true,
+    // Generate a UUID per request instead of Fastify's default sequential integer.
+    // This ID is forwarded to upstream services for distributed log correlation.
+    genReqId: () => crypto.randomUUID(),
+    ajv: {
+      customOptions: {
+        removeAdditional: false,
+      },
+    },
+  });
+
+  registerErrorHandler(app);
+
+  // Decorate request with userId so downstream code and rewriteRequestHeaders
+  // can read it after JWT verification. Must be registered before any routes.
+  app.decorateRequest('userId', null);
+
+  // Register JWT plugin — decorates app with request.jwtVerify().
+  await app.register(fastifyJwt, { secret: env.jwtAccessSecret });
+
+  // Rate limit sensitive auth endpoints at onRequest (before any other work).
+  await registerRateLimit(app);
+
+  // Verify access JWT on every request. Skips the public auth routes.
+  app.addHook('preHandler', authenticate);
+
+  // Echo the request ID in every response so clients can correlate errors.
+  app.addHook('onSend', async (request, reply) => {
+    reply.header('x-request-id', request.id);
+  });
+
+  app.get('/health', async () => {
+    return {
+      data: {
+        service: 'api-gateway',
+        status: 'ok',
+      },
+    };
+  });
+
+  const urls: ServiceUrls = {
+    auth: options?.serviceUrls?.auth ?? env.authServiceUrl,
+    tournament: options?.serviceUrls?.tournament ?? env.tournamentServiceUrl,
+    auction: options?.serviceUrls?.auction ?? env.auctionServiceUrl,
+    competition: options?.serviceUrls?.competition ?? env.competitionServiceUrl,
+    notification: options?.serviceUrls?.notification ?? env.notificationServiceUrl,
+  };
+
+  await registerProxyRoutes(app, urls);
+
+  return app;
+};
