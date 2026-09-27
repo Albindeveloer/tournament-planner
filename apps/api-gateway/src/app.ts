@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import fastifyJwt from '@fastify/jwt';
 import { registerErrorHandler } from './middleware/error-handler.js';
+import { registerRateLimit } from './middleware/rate-limit.js';
 import { authenticate } from './middleware/authenticate.js';
 import { registerProxyRoutes } from './routes/proxy.js';
 import { env } from './config/env.js';
@@ -26,6 +27,9 @@ export const buildApp = async () => {
 
   // Register JWT plugin — decorates app with request.jwtVerify().
   await app.register(fastifyJwt, { secret: env.jwtAccessSecret });
+
+  // Rate limit sensitive auth endpoints at onRequest (before any other work).
+  await registerRateLimit(app);
 
   // Verify access JWT on every request. Skips the public auth routes.
   app.addHook('preHandler', authenticate);

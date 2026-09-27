@@ -176,11 +176,22 @@ Request ID / Correlation
 
 M7.5 Request ID / Correlation — COMPLETED
 
+Rate Limiting
+
+- [x] @fastify/rate-limit installed (in-memory, no Redis required)
+- [x] registerRateLimit: global plugin, hook: 'onRequest' (runs before JWT verification)
+- [x] Rate limited endpoints: register, login, refresh, forgot-password, reset-password
+- [x] allowList function: all other routes bypass rate limiting untouched
+- [x] max: 10 requests per minute per IP (not finalized — tune for production)
+- [x] errorResponseBuilder: matches standard API error contract { error: { code, message, details } }
+
+M7.6 Rate Limiting — COMPLETED
+
 ---
 
 Current Task
 
-M7.6 — Rate Limiting
+M7.7 — Gateway Error Handling
 
 ---
 
