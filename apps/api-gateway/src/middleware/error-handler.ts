@@ -1,6 +1,17 @@
 import { FastifyError, FastifyInstance } from 'fastify';
 import { AppError } from './app-error.js';
 
+// Network errors that mean an upstream service is unreachable.
+// ECONNREFUSED: port not open, ECONNRESET/ECONNABORTED: connection dropped mid-stream,
+// ETIMEDOUT: TCP timeout, ENOTFOUND: DNS lookup failed (bad service URL or network).
+const UPSTREAM_NETWORK_ERRORS = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ECONNABORTED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+]);
+
 export const registerErrorHandler = (app: FastifyInstance): void => {
   app.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);
@@ -15,11 +26,10 @@ export const registerErrorHandler = (app: FastifyInstance): void => {
       });
     }
 
-    // Upstream service is unreachable (ECONNREFUSED, ECONNRESET, etc.).
     if (
       'code' in error &&
       typeof error.code === 'string' &&
-      (error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT')
+      UPSTREAM_NETWORK_ERRORS.has(error.code)
     ) {
       return reply.status(503).send({
         error: {
@@ -54,6 +64,17 @@ export const registerErrorHandler = (app: FastifyInstance): void => {
       error: {
         code: 'INTERNAL_SERVER_ERROR',
         message: 'An unexpected error occurred',
+        details: null,
+      },
+    });
+  });
+
+  // Prevent Fastify's default "Route X not found" from leaking internal routing details.
+  app.setNotFoundHandler((_request, reply) => {
+    void reply.status(404).send({
+      error: {
+        code: 'NOT_FOUND',
+        message: 'The requested resource was not found',
         details: null,
       },
     });

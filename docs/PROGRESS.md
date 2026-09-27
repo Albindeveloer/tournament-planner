@@ -187,11 +187,21 @@ Rate Limiting
 
 M7.6 Rate Limiting — COMPLETED
 
+Gateway Error Handling
+
+- [x] Foundation already in place from M7.1 (AppError, 503, validation, 4xx, 500)
+- [x] UPSTREAM_NETWORK_ERRORS set: ECONNREFUSED, ECONNRESET, ECONNABORTED, ETIMEDOUT, ENOTFOUND → 503
+- [x] setNotFoundHandler: prevents Fastify's default "Route X not found" from leaking routing details → 404 NOT_FOUND
+- [x] All error responses follow { error: { code, message, details } } contract
+- [x] No internal details, stack traces, or service names exposed
+
+M7.7 Gateway Error Handling — COMPLETED
+
 ---
 
 Current Task
 
-M7.7 — Gateway Error Handling
+M7.8 — Gateway Tests
 
 ---
 
