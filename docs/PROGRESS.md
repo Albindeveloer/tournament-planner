@@ -14,13 +14,13 @@ The complete project specification is available in:
 
 Current Milestone
 
-M6 — Implementation
+M7 — API Gateway (completed) → M8 — Tournament Service (next)
 
 ---
 
 Current Service
 
-Auth Service
+Tournament Service (next)
 
 ---
 
@@ -183,25 +183,40 @@ Rate Limiting
 - [x] Rate limited endpoints: register, login, refresh, forgot-password, reset-password
 - [x] allowList function: all other routes bypass rate limiting untouched
 - [x] max: 10 requests per minute per IP (not finalized — tune for production)
-- [x] errorResponseBuilder: matches standard API error contract { error: { code, message, details } }
+- [x] 429 handled in error-handler.ts: RATE_LIMIT_EXCEEDED code, message from library (includes retry window)
 
 M7.6 Rate Limiting — COMPLETED
 
 Gateway Error Handling
 
 - [x] Foundation already in place from M7.1 (AppError, 503, validation, 4xx, 500)
-- [x] UPSTREAM_NETWORK_ERRORS set: ECONNREFUSED, ECONNRESET, ECONNABORTED, ETIMEDOUT, ENOTFOUND → 503
+- [x] UPSTREAM_NETWORK_ERRORS set: ECONNREFUSED, ECONNRESET, ECONNABORTED, ETIMEDOUT, ENOTFOUND, UND_ERR_SOCKET, UND_ERR_CONNECT_TIMEOUT → 503
+- [x] getNetworkErrorCode: checks error.code first, falls through to error.cause.code (@fastify/reply-from wraps ECONNREFUSED in InternalServerError with the raw code on cause)
 - [x] setNotFoundHandler: prevents Fastify's default "Route X not found" from leaking routing details → 404 NOT_FOUND
 - [x] All error responses follow { error: { code, message, details } } contract
 - [x] No internal details, stack traces, or service names exposed
 
 M7.7 Gateway Error Handling — COMPLETED
 
+Gateway Tests
+
+- [x] tests/helpers/fake-upstream.ts: lightweight Fastify server on OS-assigned port, records received headers for assertion
+- [x] gateway.proxy.test.ts (6 tests): route forwarding to auth and tournament, x-request-id forwarded upstream, x-user-id injected on authenticated requests, x-user-id absent on public routes, x-request-id echoed in response
+- [x] gateway.auth.test.ts (9 tests): all 5 public routes pass without token, protected route rejected with no token, rejected with malformed token, rejected with wrong-secret token, forwarded with valid token
+- [x] gateway.rate-limit.test.ts (4 tests): under-limit request passes, 429 after 10 requests, RATE_LIMIT_EXCEEDED error contract, /health unaffected by rate limit
+- [x] gateway.errors.test.ts (4 tests): 404 NOT_FOUND for unknown route, no internal detail in 404 body, 503 SERVICE_UNAVAILABLE for unreachable upstream, no internal IP/port in 503 body
+- [x] All 23 tests passing
+- [x] Typecheck passed
+- [x] testTimeout raised to 15000ms (parallel Fastify instances on Windows need headroom)
+- [x] Manual testing guide created (docs/manual-testing/api-gateway.md)
+
+M7.8 Gateway Tests — COMPLETED
+
 ---
 
 Current Task
 
-M7.8 — Gateway Tests
+M8.1 — Tournament Service Foundation
 
 ---
 
