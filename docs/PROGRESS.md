@@ -227,11 +227,25 @@ Tournament Service Foundation
 
 M8.1 Tournament Service Foundation — COMPLETED
 
+Tournament Database Migration
+
+- [x] 001_create_tournament_tables.sql — all 7 tables with full constraints
+- [x] tournaments — UUID PK, owner_id (cross-service UUID, no FK), game/format/team_size/status CHECK constraints, registration timestamps
+- [x] tournament_participants — UNIQUE(tournament_id, user_id), WITHDRAWN consistency CHECK, status index (partial APPROVED)
+- [x] invitations — partial UNIQUE on PENDING only (allows re-invite), expires_at
+- [x] join_requests — partial UNIQUE on PENDING only (allows re-request)
+- [x] captain_requests — full UNIQUE(tournament_id, participant_id)
+- [x] teams — UNIQUE(tournament_id, name)
+- [x] team_members — UNIQUE(participant_id) for one-team-per-tournament, partial unique for captain/substitute, CHECK captain must be MAIN
+- [x] pgcrypto extension, all indexes
+
+M8.2 Tournament Database Migration — COMPLETED
+
 ---
 
 Current Task
 
-M8.2 — Tournament Database Migration
+M8.3 — Tournament Creation
 
 ---
 
