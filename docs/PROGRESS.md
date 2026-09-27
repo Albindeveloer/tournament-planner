@@ -168,11 +168,19 @@ Authentication Middleware
 
 M7.4 Authentication Middleware — COMPLETED
 
+Request ID / Correlation
+
+- [x] genReqId: () => crypto.randomUUID() already in app.ts (M7.1)
+- [x] rewriteRequestHeaders: forwards x-request-id: request.id to all upstream services
+- [x] onSend hook: echoes x-request-id back to the client in every response
+
+M7.5 Request ID / Correlation — COMPLETED
+
 ---
 
 Current Task
 
-M7.5 — Request ID / Correlation
+M7.6 — Rate Limiting
 
 ---
 

@@ -30,6 +30,11 @@ export const buildApp = async () => {
   // Verify access JWT on every request. Skips the public auth routes.
   app.addHook('preHandler', authenticate);
 
+  // Echo the request ID in every response so clients can correlate errors.
+  app.addHook('onSend', async (request, reply) => {
+    reply.header('x-request-id', request.id);
+  });
+
   app.get('/health', async () => {
     return {
       data: {

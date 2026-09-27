@@ -1,3 +1,4 @@
+import type { IncomingHttpHeaders } from 'node:http';
 import { FastifyInstance } from 'fastify';
 import httpProxy from '@fastify/http-proxy';
 import { env } from '../config/env.js';
@@ -27,11 +28,13 @@ export const registerProxyRoutes = async (app: FastifyInstance): Promise<void> =
       replyOptions: {
         // Forward the authenticated user's ID so downstream services can
         // identify the caller without needing to verify JWTs themselves.
-        rewriteRequestHeaders: (request, headers) => {
-          if (request.userId) {
-            return { ...headers, 'x-user-id': request.userId };
+        rewriteRequestHeaders: (request, headers): IncomingHttpHeaders => {
+          const result: IncomingHttpHeaders = { ...(headers as IncomingHttpHeaders) };
+          result['x-request-id'] = request.id;
+          if (request.userId !== null) {
+            result['x-user-id'] = request.userId;
           }
-          return headers;
+          return result;
         },
       },
     });
