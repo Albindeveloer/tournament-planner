@@ -14,13 +14,13 @@ The complete project specification is available in:
 
 Current Milestone
 
-M7 — API Gateway (completed) → M8 — Tournament Service (next)
+M8 — Tournament Service (in progress)
 
 ---
 
 Current Service
 
-Tournament Service (next)
+Tournament Service
 
 ---
 
@@ -212,11 +212,26 @@ Gateway Tests
 
 M7.8 Gateway Tests — COMPLETED
 
+Tournament Service Foundation
+
+- [x] Fastify application setup (app.ts)
+- [x] Server setup with graceful shutdown (server.ts)
+- [x] PostgreSQL connection pool (infrastructure/database/postgres.ts)
+- [x] Migration runner (infrastructure/database/migrate.ts)
+- [x] Health endpoint (GET /health)
+- [x] Error handling foundation (AppError, error-handler)
+- [x] Environment configuration (config/env.ts)
+- [x] TypeScript config (tsconfig.json)
+- [x] package.json with scripts (dev, build, start, migrate, test, typecheck, lint)
+- [x] .env, .env.example, .env.test
+
+M8.1 Tournament Service Foundation — COMPLETED
+
 ---
 
 Current Task
 
-M8.1 — Tournament Service Foundation
+M8.2 — Tournament Database Migration
 
 ---
 
