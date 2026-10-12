@@ -255,11 +255,26 @@ Tournament Creation
 
 M8.3 Tournament Creation — COMPLETED
 
+Tournament Configuration
+
+- [x] TournamentRepository: findAll (pagination + optional owner filter), update (dynamic SET)
+- [x] TournamentService: getTournament, listTournaments, updateTournament
+- [x] updateTournament: ownership check (403 FORBIDDEN), immutable status guard (409 TOURNAMENT_NOT_MODIFIABLE), structural field lock after DRAFT (409 CONFIGURATION_LOCKED), effective date validation
+- [x] Structural fields locked after DRAFT: team_size, number_of_teams, substitutes_enabled, team_formation_mode
+- [x] GET /api/v1/tournaments/:id — any authenticated user, 404 TOURNAMENT_NOT_FOUND
+- [x] GET /api/v1/tournaments — paginated list, ?owner_id=me resolves to caller, ?owner_id=<uuid> filters by owner
+- [x] PATCH /api/v1/tournaments/:id — owner-only, partial update, additionalProperties: false
+- [x] 25/25 new tests passing (5 GET single, 8 GET list, 12 PATCH)
+- [x] All 37 tests passing (12 creation + 25 configuration)
+- [x] Typecheck passed
+
+M8.4 Tournament Configuration — COMPLETED
+
 ---
 
 Current Task
 
-M8.4 — Tournament Configuration
+M8.5 — Tournament Lifecycle
 
 ---
 

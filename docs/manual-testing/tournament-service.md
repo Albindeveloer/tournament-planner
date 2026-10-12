@@ -29,8 +29,8 @@ npm test --workspace=@tournament-planner/tournament-service
 
 Expected output:
 ```
-Test Files  1 passed (1)
-      Tests  12 passed (12)
+Test Files  2 passed (2)
+      Tests  37 passed (37)
 ```
 
 ---
@@ -110,6 +110,8 @@ Your `Api Gateway Local` environment now has these variables:
 | `refresh_token` | Filled automatically by the Login request |
 | `reset_token` | Filled automatically by the Forgot Password request |
 | `tournament_id` | Filled automatically after Create Tournament |
+
+> **Tip:** Every test in Part 2 assumes you run **Request 1 — Create Tournament** first so that `tournament_id` is populated. If you restart Postman or clear the environment, run Request 1 again before the GET/PATCH requests.
 
 ---
 
@@ -375,22 +377,396 @@ Expected: **400 Bad Request** with `VALIDATION_ERROR`.
 
 ---
 
+#### Request 11 — Get Tournament
+
+| Field | Value |
+|---|---|
+| Name | `Get Tournament` |
+| Method | `GET` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "tournament": {
+      "id": "{{tournament_id}}",
+      "owner_id": "<your user uuid>",
+      "name": "Weekend Cup",
+      "description": null,
+      "game": "EFOOTBALL",
+      "format": "KNOCKOUT",
+      "team_size": 4,
+      "number_of_teams": 8,
+      "substitutes_enabled": false,
+      "team_formation_mode": "MANUAL",
+      "status": "DRAFT",
+      "registration_start_at": null,
+      "registration_end_at": null,
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- The response contains all tournament fields
+- `status` is `DRAFT`
+- `id` matches `tournament_id` in your environment
+
+---
+
+#### Request 12 — Get Tournament — Not Found → 404
+
+Duplicate Request 11. Name it `Get Tournament — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/00000000-0000-0000-0000-000000000099
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "TOURNAMENT_NOT_FOUND",
+    "message": "Tournament not found",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 13 — Get Tournament — No Token → 401
+
+Duplicate Request 11. Name it `Get Tournament — No Token`.
+
+Authorization tab → Type: **No Auth**.
+
+Expected: **401 Unauthorized** with `UNAUTHORIZED`.
+
+---
+
+#### Request 14 — List Tournaments
+
+| Field | Value |
+|---|---|
+| Name | `List Tournaments` |
+| Method | `GET` |
+| URL | `{{gateway_url}}/api/v1/tournaments` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": [
+    {
+      "id": "<uuid>",
+      "name": "Weekend Cup",
+      ...
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+**What to verify:**
+- `data` is an array (even if it has only one item)
+- `pagination.total` matches the number of tournaments you have created
+- Items are sorted newest first
+
+---
+
+#### Request 15 — List Tournaments — My Tournaments Only
+
+Duplicate Request 14. Name it `List My Tournaments`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments?owner_id=me
+```
+
+Expected: **200 OK** — `data` contains only tournaments where `owner_id` matches your user UUID.
+
+> `owner_id=me` is resolved by the service to the caller's user ID from the `x-user-id` header. You never need to paste your own UUID into the URL.
+
+---
+
+#### Request 16 — List Tournaments — Pagination
+
+Duplicate Request 14. Name it `List Tournaments — Page 1 Limit 1`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments?page=1&limit=1
+```
+
+Expected: **200 OK**
+- `data` has exactly 1 item (even if you have more tournaments)
+- `pagination.limit` is `1`
+- `pagination.totalPages` equals the total number of tournaments you have created
+
+---
+
+#### Request 17 — List Tournaments — Limit Too High → 400
+
+Duplicate Request 14. Name it `List Tournaments — Limit Too High`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments?limit=200
+```
+
+Expected: **400 Bad Request** with `VALIDATION_ERROR`.
+
+> Maximum allowed `limit` is 100.
+
+---
+
+#### Request 18 — Update Tournament (Partial)
+
+| Field | Value |
+|---|---|
+| Name | `Update Tournament` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}` |
+
+Authorization: Bearer Token → `{{access_token}}`.
+
+Body → raw → JSON:
+```json
+{
+  "name": "Weekend Cup — Updated",
+  "description": "Now with a description",
+  "team_size": 2,
+  "number_of_teams": 4,
+  "substitutes_enabled": true,
+  "team_formation_mode": "AUCTION"
+}
+```
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "tournament": {
+      "id": "{{tournament_id}}",
+      "name": "Weekend Cup — Updated",
+      "description": "Now with a description",
+      "team_size": 2,
+      "number_of_teams": 4,
+      "substitutes_enabled": true,
+      "team_formation_mode": "AUCTION",
+      "status": "DRAFT",
+      ...
+    }
+  }
+}
+```
+
+**What to verify:**
+- Only the fields you sent have changed
+- `status` is still `DRAFT` — PATCH cannot change lifecycle status
+- `updated_at` is newer than `created_at`
+
+---
+
+#### Request 19 — Update Tournament — Name Only
+
+Duplicate Request 18. Name it `Update Tournament — Name Only`.
+
+Body → raw → JSON:
+```json
+{
+  "name": "Renamed Cup"
+}
+```
+
+Expected: **200 OK** — only `name` changes. All other fields (description, team_size, etc.) keep their existing values.
+
+> This confirms partial update behaviour. Sending only the fields you want to change is the whole point of PATCH.
+
+---
+
+#### Request 20 — Update Tournament — Clear Description
+
+Duplicate Request 18. Name it `Update Tournament — Clear Description`.
+
+Body → raw → JSON:
+```json
+{
+  "description": ""
+}
+```
+
+Expected: **200 OK** — `description` in the response is `null`.
+
+> An empty string is trimmed and stored as null. This is the correct way to clear the description field.
+
+---
+
+#### Request 21 — Update Tournament — No Token → 401
+
+Duplicate Request 18. Name it `Update Tournament — No Token`.
+
+Authorization tab → Type: **No Auth**.
+
+Expected: **401 Unauthorized** with `UNAUTHORIZED`.
+
+---
+
+#### Request 22 — Update Tournament — Unknown Field → 400
+
+Duplicate Request 18. Name it `Update Tournament — Extra Field`.
+
+Body → raw → JSON:
+```json
+{
+  "name": "Valid Name",
+  "status": "CANCELLED"
+}
+```
+
+Expected: **400 Bad Request** with `VALIDATION_ERROR`.
+
+> `status` is not in the allowed PATCH body. Tournament status is controlled only through lifecycle endpoints (M8.5), never through PATCH.
+
+---
+
+#### Request 23 — Update Tournament — Invalid Dates → 400
+
+Duplicate Request 18. Name it `Update Tournament — Invalid Dates`.
+
+Body → raw → JSON:
+```json
+{
+  "registration_start_at": "2026-12-10T00:00:00Z",
+  "registration_end_at": "2026-12-01T00:00:00Z"
+}
+```
+
+Expected: **400 Bad Request**
+```json
+{
+  "error": {
+    "code": "INVALID_REGISTRATION_DATES",
+    "message": "registration_end_at must be after registration_start_at",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 24 — Update Tournament — Structural Fields Locked After DRAFT → 409
+
+This test requires manually advancing the tournament status in the database.
+
+> **Pre-condition:** Run this SQL in your database client (pgAdmin or psql) against `tournament_db`:
+> ```sql
+> UPDATE tournaments SET status = 'REGISTRATION_OPEN' WHERE id = '<paste your tournament_id here>';
+> ```
+
+Then send:
+
+| Field | Value |
+|---|---|
+| Name | `Update Tournament — Structural Fields Locked` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}` |
+
+Body → raw → JSON:
+```json
+{
+  "team_size": 3
+}
+```
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "CONFIGURATION_LOCKED",
+    "message": "Cannot change team_size once registration has opened",
+    "details": null
+  }
+}
+```
+
+> **Why:** Once players can register, changing `team_size`, `number_of_teams`, `substitutes_enabled`, or `team_formation_mode` would invalidate the capacity expectations you already communicated to participants. These four fields are locked the moment the tournament leaves `DRAFT`.
+
+> **After this test:** Reset the status back to `DRAFT` so subsequent requests work normally:
+> ```sql
+> UPDATE tournaments SET status = 'DRAFT' WHERE id = '<your tournament_id>';
+> ```
+
+---
+
+#### Request 25 — Update Tournament — Name Still Editable After DRAFT
+
+Run this after Request 24 has confirmed the lock. The tournament status should still be `REGISTRATION_OPEN` in the database (or reset it to `REGISTRATION_OPEN` again).
+
+Body → raw → JSON:
+```json
+{
+  "name": "Name Change Is Still Allowed"
+}
+```
+
+Expected: **200 OK** — name updates successfully even though registration is open.
+
+> `name` and `description` are never locked — they do not affect participant capacity or team formation.
+
+---
+
 ### Step 7 — Run through the full sequence
 
 Work through the requests in this order to cover all scenarios:
 
 ```
-1.  Login (API Gateway → Public Routes → Login)  → access_token saved to environment
-2.  Create Tournament                             → 201, tournament_id saved
-3.  Create Tournament (Full)                      → 201, all optional fields present
-4.  Create Tournament — No Token                  → 401 UNAUTHORIZED
-5.  Create Tournament — Invalid Game              → 400 VALIDATION_ERROR
-6.  Create Tournament — Invalid Format            → 400 VALIDATION_ERROR
-7.  Create Tournament — Invalid Team Size         → 400 VALIDATION_ERROR
-8.  Create Tournament — Too Few Teams             → 400 VALIDATION_ERROR
-9.  Create Tournament — Invalid Dates             → 400 INVALID_REGISTRATION_DATES
-10. Create Tournament — Missing Field             → 400 VALIDATION_ERROR
-11. Create Tournament — Extra Field               → 400 VALIDATION_ERROR
+--- Create ---
+1.  Login (API Gateway → Public Routes → Login)   → access_token saved
+2.  Create Tournament                              → 201, tournament_id saved
+3.  Create Tournament (Full)                       → 201, all optional fields present
+4.  Create Tournament — No Token                   → 401 UNAUTHORIZED
+5.  Create Tournament — Invalid Game               → 400 VALIDATION_ERROR
+6.  Create Tournament — Invalid Format             → 400 VALIDATION_ERROR
+7.  Create Tournament — Invalid Team Size          → 400 VALIDATION_ERROR
+8.  Create Tournament — Too Few Teams              → 400 VALIDATION_ERROR
+9.  Create Tournament — Invalid Dates              → 400 INVALID_REGISTRATION_DATES
+10. Create Tournament — Missing Field              → 400 VALIDATION_ERROR
+11. Create Tournament — Extra Field                → 400 VALIDATION_ERROR
+
+--- GET single ---
+12. Get Tournament                                 → 200, full tournament object
+13. Get Tournament — Not Found                     → 404 TOURNAMENT_NOT_FOUND
+14. Get Tournament — No Token                      → 401 UNAUTHORIZED
+
+--- GET list ---
+15. List Tournaments                               → 200, data array + pagination
+16. List My Tournaments (?owner_id=me)             → 200, only your tournaments
+17. List Tournaments — Page 1 Limit 1             → 200, 1 item, pagination correct
+18. List Tournaments — Limit Too High              → 400 VALIDATION_ERROR
+
+--- PATCH ---
+19. Update Tournament                              → 200, multiple fields updated
+20. Update Tournament — Name Only                  → 200, only name changed
+21. Update Tournament — Clear Description          → 200, description is null
+22. Update Tournament — No Token                   → 401 UNAUTHORIZED
+23. Update Tournament — Extra Field                → 400 VALIDATION_ERROR
+24. Update Tournament — Invalid Dates              → 400 INVALID_REGISTRATION_DATES
+25. Update Tournament — Structural Fields Locked   → 409 CONFIGURATION_LOCKED (requires DB change)
+26. Update Tournament — Name Still Editable        → 200 (requires status = REGISTRATION_OPEN in DB)
 ```
 
 ---
@@ -420,4 +796,6 @@ Expected: **200 OK**
 - **Always use `Api Gateway Local`** as the active environment when testing tournament endpoints.
 - The gateway injects `x-user-id` after verifying the JWT. The tournament service reads that header as `owner_id`. Never set `x-user-id` manually in Postman.
 - A new tournament always starts as `DRAFT`. Status transitions (open registration, close, cancel) will be added as new requests when M8.5 is implemented.
+- `status` cannot be set via `POST` or `PATCH` body — it is always controlled through dedicated lifecycle endpoints.
+- The structural field lock (Requests 25–26) requires manually setting the DB status because lifecycle transition endpoints don't exist yet. Once M8.5 is done you will be able to use the API instead.
 - Test database: `tournament_test_db` — used only by `npm test`. Manual Postman testing always uses `tournament_db`.
