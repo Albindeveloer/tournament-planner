@@ -19,14 +19,29 @@ CREATE USER notification_user WITH PASSWORD 'notification_dev_password';
 CREATE DATABASE auth_db
     OWNER auth_user;
 
+CREATE DATABASE auth_test_db
+    OWNER auth_user;
+
 CREATE DATABASE tournament_db
+    OWNER tournament_user;
+
+CREATE DATABASE tournament_test_db
     OWNER tournament_user;
 
 CREATE DATABASE auction_db
     OWNER auction_user;
 
+CREATE DATABASE auction_test_db
+    OWNER auction_user;
+
 CREATE DATABASE competition_db
     OWNER competition_user;
 
+CREATE DATABASE competition_test_db
+    OWNER competition_user;
+
 CREATE DATABASE notification_db
+    OWNER notification_user;
+
+CREATE DATABASE notification_test_db
     OWNER notification_user;

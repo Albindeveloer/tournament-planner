@@ -14,8 +14,17 @@
    ```
 
 3. Migrations have been applied:
-   ```
+
+   **Development database** (`auth_db`):
+   ```powershell
    npm run migrate --workspace=@tournament-planner/auth-service
+   ```
+
+   **Test database** (`auth_test_db`) — required before running `npm test`:
+   ```powershell
+   $env:NODE_ENV = "test"
+   npm run migrate --workspace=@tournament-planner/auth-service
+   $env:NODE_ENV = "development"
    ```
 
 **Base URL:** `http://localhost:3001`

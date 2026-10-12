@@ -14,13 +14,13 @@ The complete project specification is available in:
 
 Current Milestone
 
-M7 — API Gateway (completed) → M8 — Tournament Service (next)
+M8 — Tournament Service (in progress)
 
 ---
 
 Current Service
 
-Tournament Service (next)
+Tournament Service
 
 ---
 
@@ -212,11 +212,54 @@ Gateway Tests
 
 M7.8 Gateway Tests — COMPLETED
 
+Tournament Service Foundation
+
+- [x] Fastify application setup (app.ts)
+- [x] Server setup with graceful shutdown (server.ts)
+- [x] PostgreSQL connection pool (infrastructure/database/postgres.ts)
+- [x] Migration runner (infrastructure/database/migrate.ts)
+- [x] Health endpoint (GET /health)
+- [x] Error handling foundation (AppError, error-handler)
+- [x] Environment configuration (config/env.ts)
+- [x] TypeScript config (tsconfig.json)
+- [x] package.json with scripts (dev, build, start, migrate, test, typecheck, lint)
+- [x] .env, .env.example, .env.test
+
+M8.1 Tournament Service Foundation — COMPLETED
+
+Tournament Database Migration
+
+- [x] 001_create_tournament_tables.sql — all 7 tables with full constraints
+- [x] tournaments — UUID PK, owner_id (cross-service UUID, no FK), game/format/team_size/status CHECK constraints, registration timestamps
+- [x] tournament_participants — UNIQUE(tournament_id, user_id), WITHDRAWN consistency CHECK, status index (partial APPROVED)
+- [x] invitations — partial UNIQUE on PENDING only (allows re-invite), expires_at
+- [x] join_requests — partial UNIQUE on PENDING only (allows re-request)
+- [x] captain_requests — full UNIQUE(tournament_id, participant_id)
+- [x] teams — UNIQUE(tournament_id, name)
+- [x] team_members — UNIQUE(participant_id) for one-team-per-tournament, partial unique for captain/substitute, CHECK captain must be MAIN
+- [x] pgcrypto extension, all indexes
+
+M8.2 Tournament Database Migration — COMPLETED
+
+Tournament Creation
+
+- [x] TournamentRepository: create, findById
+- [x] TournamentService: createTournament with registration date validation
+- [x] createTournament controller: reads owner_id from x-user-id header (never from body)
+- [x] POST /api/v1/tournaments route with full JSON Schema validation
+- [x] game enforced to EFOOTBALL, format enforced to KNOCKOUT
+- [x] status always set to DRAFT (never from input)
+- [x] Tournament creation tests (12/12 passed)
+- [x] vitest.config.ts created for tournament service
+- [x] Typecheck passed
+
+M8.3 Tournament Creation — COMPLETED
+
 ---
 
 Current Task
 
-M8.1 — Tournament Service Foundation
+M8.4 — Tournament Configuration
 
 ---
 
