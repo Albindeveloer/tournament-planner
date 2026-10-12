@@ -241,11 +241,25 @@ Tournament Database Migration
 
 M8.2 Tournament Database Migration — COMPLETED
 
+Tournament Creation
+
+- [x] TournamentRepository: create, findById
+- [x] TournamentService: createTournament with registration date validation
+- [x] createTournament controller: reads owner_id from x-user-id header (never from body)
+- [x] POST /api/v1/tournaments route with full JSON Schema validation
+- [x] game enforced to EFOOTBALL, format enforced to KNOCKOUT
+- [x] status always set to DRAFT (never from input)
+- [x] Tournament creation tests (12/12 passed)
+- [x] vitest.config.ts created for tournament service
+- [x] Typecheck passed
+
+M8.3 Tournament Creation — COMPLETED
+
 ---
 
 Current Task
 
-M8.3 — Tournament Creation
+M8.4 — Tournament Configuration
 
 ---
 
