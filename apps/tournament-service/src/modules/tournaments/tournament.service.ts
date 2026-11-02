@@ -180,6 +180,60 @@ export class TournamentService {
     // update() returns null only if the WHERE clause matched nothing — already checked above
     return updated!;
   }
+
+  async openRegistration(callerId: string, id: string): Promise<Tournament> {
+    const tournament = await tournamentRepository.findById(id);
+    if (!tournament) {
+      throw new AppError('TOURNAMENT_NOT_FOUND', 404, 'Tournament not found');
+    }
+    if (tournament.owner_id !== callerId) {
+      throw new AppError('FORBIDDEN', 403, 'Only the tournament owner can perform this action');
+    }
+    if (tournament.status !== 'DRAFT') {
+      throw new AppError(
+        'INVALID_STATUS_TRANSITION',
+        409,
+        `Cannot open registration from status ${tournament.status}`,
+      );
+    }
+    return (await tournamentRepository.updateStatus(id, 'REGISTRATION_OPEN'))!;
+  }
+
+  async closeRegistration(callerId: string, id: string): Promise<Tournament> {
+    const tournament = await tournamentRepository.findById(id);
+    if (!tournament) {
+      throw new AppError('TOURNAMENT_NOT_FOUND', 404, 'Tournament not found');
+    }
+    if (tournament.owner_id !== callerId) {
+      throw new AppError('FORBIDDEN', 403, 'Only the tournament owner can perform this action');
+    }
+    if (tournament.status !== 'REGISTRATION_OPEN') {
+      throw new AppError(
+        'INVALID_STATUS_TRANSITION',
+        409,
+        `Cannot close registration from status ${tournament.status}`,
+      );
+    }
+    return (await tournamentRepository.updateStatus(id, 'REGISTRATION_CLOSED'))!;
+  }
+
+  async cancelTournament(callerId: string, id: string): Promise<Tournament> {
+    const tournament = await tournamentRepository.findById(id);
+    if (!tournament) {
+      throw new AppError('TOURNAMENT_NOT_FOUND', 404, 'Tournament not found');
+    }
+    if (tournament.owner_id !== callerId) {
+      throw new AppError('FORBIDDEN', 403, 'Only the tournament owner can perform this action');
+    }
+    if (IMMUTABLE_STATUSES.includes(tournament.status)) {
+      throw new AppError(
+        'INVALID_STATUS_TRANSITION',
+        409,
+        `Cannot cancel a tournament with status ${tournament.status}`,
+      );
+    }
+    return (await tournamentRepository.updateStatus(id, 'CANCELLED'))!;
+  }
 }
 
 export const tournamentService = new TournamentService();

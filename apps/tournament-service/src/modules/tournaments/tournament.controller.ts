@@ -68,3 +68,32 @@ export const updateTournament = async (
   const tournament = await tournamentService.updateTournament(callerId, request.params.id, request.body);
   await reply.status(200).send({ data: { tournament } });
 };
+
+type LifecycleRequest = { Params: { id: string } };
+
+export const openRegistration = async (
+  request: FastifyRequest<LifecycleRequest>,
+  reply: FastifyReply,
+): Promise<void> => {
+  const callerId = getUserId(request);
+  const tournament = await tournamentService.openRegistration(callerId, request.params.id);
+  await reply.status(200).send({ data: { tournament } });
+};
+
+export const closeRegistration = async (
+  request: FastifyRequest<LifecycleRequest>,
+  reply: FastifyReply,
+): Promise<void> => {
+  const callerId = getUserId(request);
+  const tournament = await tournamentService.closeRegistration(callerId, request.params.id);
+  await reply.status(200).send({ data: { tournament } });
+};
+
+export const cancelTournament = async (
+  request: FastifyRequest<LifecycleRequest>,
+  reply: FastifyReply,
+): Promise<void> => {
+  const callerId = getUserId(request);
+  const tournament = await tournamentService.cancelTournament(callerId, request.params.id);
+  await reply.status(200).send({ data: { tournament } });
+};
