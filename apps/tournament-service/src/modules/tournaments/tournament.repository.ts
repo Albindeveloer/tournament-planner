@@ -152,6 +152,14 @@ export class TournamentRepository {
 
     return result.rows[0] ?? null;
   }
+
+  async updateStatus(id: string, status: string): Promise<Tournament | null> {
+    const result = await pool.query<Tournament>(
+      `UPDATE tournaments SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [status, id],
+    );
+    return result.rows[0] ?? null;
+  }
 }
 
 export const tournamentRepository = new TournamentRepository();

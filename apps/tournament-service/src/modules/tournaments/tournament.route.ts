@@ -1,5 +1,13 @@
 import { FastifyInstance } from 'fastify';
-import { createTournament, getTournament, listTournaments, updateTournament } from './tournament.controller.js';
+import {
+  createTournament,
+  getTournament,
+  listTournaments,
+  updateTournament,
+  openRegistration,
+  closeRegistration,
+  cancelTournament,
+} from './tournament.controller.js';
 
 export const tournamentRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post(
@@ -93,4 +101,18 @@ export const tournamentRoutes = async (app: FastifyInstance): Promise<void> => {
     },
     updateTournament,
   );
+
+  const lifecycleParams = {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string', format: 'uuid' } },
+      },
+    },
+  };
+
+  app.post('/:id/open', lifecycleParams, openRegistration);
+  app.post('/:id/close', lifecycleParams, closeRegistration);
+  app.post('/:id/cancel', lifecycleParams, cancelTournament);
 };

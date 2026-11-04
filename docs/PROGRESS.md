@@ -270,11 +270,24 @@ Tournament Configuration
 
 M8.4 Tournament Configuration — COMPLETED
 
+Tournament Lifecycle
+
+- [x] TournamentRepository: updateStatus (focused single-field SQL update)
+- [x] TournamentService: openRegistration (DRAFT → REGISTRATION_OPEN), closeRegistration (REGISTRATION_OPEN → REGISTRATION_CLOSED), cancelTournament (any non-terminal → CANCELLED)
+- [x] All three methods enforce: tournament exists, caller is owner, valid source status
+- [x] Error code INVALID_STATUS_TRANSITION (409) for wrong-status attempts
+- [x] POST /api/v1/tournaments/:id/open, /close, /cancel routes with UUID param validation
+- [x] Lifecycle tests (12/12 passed): open success, open wrong status, open not owner, open not found, close success, close wrong status, close not owner, cancel from DRAFT, cancel from REGISTRATION_OPEN, cancel from CANCELLED (blocked), cancel from COMPLETED (blocked), cancel not owner
+- [x] All 49 tests passing (12 creation + 25 configuration + 12 lifecycle)
+- [x] Typecheck passed
+
+M8.5 Tournament Lifecycle — COMPLETED
+
 ---
 
 Current Task
 
-M8.5 — Tournament Lifecycle
+M8.6 — Participant Management
 
 ---
 
