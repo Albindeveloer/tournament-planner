@@ -29,8 +29,8 @@ npm test --workspace=@tournament-planner/tournament-service
 
 Expected output:
 ```
-Test Files  2 passed (2)
-      Tests  37 passed (37)
+Test Files  3 passed (3)
+      Tests  49 passed (49)
 ```
 
 ---
@@ -727,6 +727,206 @@ Expected: **200 OK** — name updates successfully even though registration is o
 
 > `name` and `description` are never locked — they do not affect participant capacity or team formation.
 
+> **After this test:** Reset the tournament back to `DRAFT` so the lifecycle requests below work from a clean state:
+> ```sql
+> UPDATE tournaments SET status = 'DRAFT' WHERE id = '<your tournament_id>';
+> ```
+
+---
+
+#### Request 26 — Open Registration
+
+| Field | Value |
+|---|---|
+| Name | `Open Registration` |
+| Method | `POST` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/open` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "tournament": {
+      "id": "{{tournament_id}}",
+      "status": "REGISTRATION_OPEN",
+      ...
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` changed from `DRAFT` to `REGISTRATION_OPEN`
+- All other fields are unchanged
+- `updated_at` is newer than before
+
+---
+
+#### Request 27 — Open Registration — Wrong Status → 409
+
+Duplicate Request 26. Name it `Open Registration — Wrong Status`.
+
+Send it again **without resetting the status**. The tournament is now already `REGISTRATION_OPEN`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "INVALID_STATUS_TRANSITION",
+    "message": "Cannot open registration from status REGISTRATION_OPEN",
+    "details": null
+  }
+}
+```
+
+> Open registration is only valid from `DRAFT`. Calling it again has no effect on the data — the service rejects it cleanly.
+
+---
+
+#### Request 28 — Open Registration — Not Owner → 403
+
+> **Pre-condition:** Reset the tournament to `DRAFT` in the database:
+> ```sql
+> UPDATE tournaments SET status = 'DRAFT' WHERE id = '<your tournament_id>';
+> ```
+
+Create a new request:
+
+| Field | Value |
+|---|---|
+| Name | `Open Registration — Not Owner` |
+| Method | `POST` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/open` |
+
+Authorization tab → Type: **Bearer Token** → Token: use a **different user's** access token (register a second account to get one).
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can perform this action",
+    "details": null
+  }
+}
+```
+
+> If you do not have a second account, you can confirm this behaviour is covered by the automated tests (test: "should return 403 FORBIDDEN when caller is not the owner").
+
+---
+
+#### Request 29 — Close Registration
+
+> **Pre-condition:** The tournament must be in `REGISTRATION_OPEN`. Either run Request 26 again, or set it via SQL:
+> ```sql
+> UPDATE tournaments SET status = 'REGISTRATION_OPEN' WHERE id = '<your tournament_id>';
+> ```
+
+| Field | Value |
+|---|---|
+| Name | `Close Registration` |
+| Method | `POST` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/close` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "tournament": {
+      "id": "{{tournament_id}}",
+      "status": "REGISTRATION_CLOSED",
+      ...
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` changed to `REGISTRATION_CLOSED`
+
+---
+
+#### Request 30 — Close Registration — Wrong Status → 409
+
+Duplicate Request 29. Name it `Close Registration — Wrong Status`.
+
+> **Pre-condition:** Reset the tournament to `DRAFT` (not `REGISTRATION_OPEN`):
+> ```sql
+> UPDATE tournaments SET status = 'DRAFT' WHERE id = '<your tournament_id>';
+> ```
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "INVALID_STATUS_TRANSITION",
+    "message": "Cannot close registration from status DRAFT",
+    "details": null
+  }
+}
+```
+
+> Close registration is only valid from `REGISTRATION_OPEN`. Calling it from `DRAFT` (or any other status) is rejected.
+
+---
+
+#### Request 31 — Cancel Tournament
+
+> **Pre-condition:** The tournament must not be in a terminal status (`COMPLETED` or `CANCELLED`). If it is, run Request 1 to create a fresh tournament and copy the new `tournament_id` into your environment, or reset via SQL:
+> ```sql
+> UPDATE tournaments SET status = 'DRAFT' WHERE id = '<your tournament_id>';
+> ```
+
+| Field | Value |
+|---|---|
+| Name | `Cancel Tournament` |
+| Method | `POST` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/cancel` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "tournament": {
+      "id": "{{tournament_id}}",
+      "status": "CANCELLED",
+      ...
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `CANCELLED`
+- The tournament can be cancelled from any non-terminal status (`DRAFT`, `REGISTRATION_OPEN`, `REGISTRATION_CLOSED`, etc.)
+
+---
+
+#### Request 32 — Cancel Tournament — Already Cancelled → 409
+
+Duplicate Request 31. Name it `Cancel Tournament — Already Cancelled`.
+
+Send it again **without resetting the status**. The tournament is now already `CANCELLED`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "INVALID_STATUS_TRANSITION",
+    "message": "Cannot cancel a tournament with status CANCELLED",
+    "details": null
+  }
+}
+```
+
+> `CANCELLED` and `COMPLETED` are terminal states — no further transitions are allowed.
+
 ---
 
 ### Step 7 — Run through the full sequence
@@ -765,8 +965,22 @@ Work through the requests in this order to cover all scenarios:
 22. Update Tournament — No Token                   → 401 UNAUTHORIZED
 23. Update Tournament — Extra Field                → 400 VALIDATION_ERROR
 24. Update Tournament — Invalid Dates              → 400 INVALID_REGISTRATION_DATES
-25. Update Tournament — Structural Fields Locked   → 409 CONFIGURATION_LOCKED (requires DB change)
-26. Update Tournament — Name Still Editable        → 200 (requires status = REGISTRATION_OPEN in DB)
+25. Update Tournament — Structural Fields Locked   → 409 CONFIGURATION_LOCKED (requires DB reset to REGISTRATION_OPEN)
+26. Update Tournament — Name Still Editable        → 200 (tournament still at REGISTRATION_OPEN)
+    [Reset status to DRAFT before continuing]
+
+--- Lifecycle ---
+27. Open Registration                              → 200, status = REGISTRATION_OPEN
+28. Open Registration — Wrong Status               → 409 INVALID_STATUS_TRANSITION (already open)
+    [Reset status to DRAFT via SQL for next test]
+29. Open Registration — Not Owner                  → 403 FORBIDDEN (different user's token)
+    [Set status to REGISTRATION_OPEN via SQL or run request 27]
+30. Close Registration                             → 200, status = REGISTRATION_CLOSED
+    [Reset status to DRAFT via SQL]
+31. Close Registration — Wrong Status              → 409 INVALID_STATUS_TRANSITION (not open)
+    [Reset status to DRAFT via SQL]
+32. Cancel Tournament                              → 200, status = CANCELLED
+33. Cancel Tournament — Already Cancelled          → 409 INVALID_STATUS_TRANSITION (terminal)
 ```
 
 ---
@@ -795,7 +1009,7 @@ Expected: **200 OK**
 
 - **Always use `Api Gateway Local`** as the active environment when testing tournament endpoints.
 - The gateway injects `x-user-id` after verifying the JWT. The tournament service reads that header as `owner_id`. Never set `x-user-id` manually in Postman.
-- A new tournament always starts as `DRAFT`. Status transitions (open registration, close, cancel) will be added as new requests when M8.5 is implemented.
-- `status` cannot be set via `POST` or `PATCH` body — it is always controlled through dedicated lifecycle endpoints.
-- The structural field lock (Requests 25–26) requires manually setting the DB status because lifecycle transition endpoints don't exist yet. Once M8.5 is done you will be able to use the API instead.
+- A new tournament always starts as `DRAFT`. Use the dedicated lifecycle endpoints (`/open`, `/close`, `/cancel`) to advance the status — never via the PATCH body.
+- `status` cannot be set via `POST` or `PATCH` body — it is always controlled through the three lifecycle endpoints.
+- The structural field lock (Requests 25–26) still requires a manual DB reset to `REGISTRATION_OPEN` because the lifecycle endpoints intentionally enforce strict ordering — you must open first, then the lock applies automatically.
 - Test database: `tournament_test_db` — used only by `npm test`. Manual Postman testing always uses `tournament_db`.
