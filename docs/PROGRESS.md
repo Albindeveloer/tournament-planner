@@ -293,6 +293,7 @@ Participant Management
 - [x] approveParticipant tested directly (no HTTP endpoint yet — called by M8.7/M8.8)
 - [x] 19 new tests (4 GET, 8 withdraw, 7 approve service) — all 68 tests passing
 - [x] Typecheck passed
+- [x] Manual testing guide updated (docs/manual-testing/tournament-service.md)
 
 M8.6 Participant Management — COMPLETED
 

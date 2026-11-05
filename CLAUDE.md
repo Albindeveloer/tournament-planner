@@ -410,6 +410,10 @@ Prefer one meaningful task per commit.
 
 Do not perform destructive Git operations without explicit approval.
 
+Do NOT run git add or git commit automatically.
+
+After completing implementation and updating PROGRESS.md, provide the suggested commit message as a code block for the user to copy and run. The user validates the changes and commits manually.
+
 ---
 
 13. Existing Code Is Important
