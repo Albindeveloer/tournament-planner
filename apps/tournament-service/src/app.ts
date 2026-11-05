@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import { registerErrorHandler } from './middleware/error-handler.js';
 import { tournamentRoutes } from './modules/tournaments/tournament.route.js';
+import { participantRoutes } from './modules/participants/participant.route.js';
 
 export const buildApp = () => {
   const app = Fastify({
@@ -15,6 +16,7 @@ export const buildApp = () => {
   registerErrorHandler(app);
 
   app.register(tournamentRoutes, { prefix: '/api/v1/tournaments' });
+  app.register(participantRoutes, { prefix: '/api/v1/tournaments' });
 
   app.get('/health', async (_request, _reply) => {
     return {
