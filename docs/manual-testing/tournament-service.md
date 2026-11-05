@@ -29,8 +29,8 @@ npm test --workspace=@tournament-planner/tournament-service
 
 Expected output:
 ```
-Test Files  3 passed (3)
-      Tests  49 passed (49)
+Test Files  4 passed (4)
+      Tests  68 passed (68)
 ```
 
 ---
@@ -90,16 +90,18 @@ You already have two environments:
 
 All tournament requests go through the gateway. Do not use `Auth Service Local` for tournament testing.
 
-#### Add the tournament_id variable
+#### Add the tournament_id and participant_id variables
 
 1. In Postman, click **Environments** in the left sidebar.
 2. Open **Api Gateway Local**.
-3. Click **Add a new variable** at the bottom of the variable list.
-4. Set:
-   - Variable: `tournament_id`
-   - Initial Value: *(leave empty)*
-   - Current Value: *(leave empty)*
-5. Click **Save**.
+3. Click **Add a new variable** at the bottom of the variable list and add both rows:
+
+| Variable | Initial Value | Current Value |
+|---|---|---|
+| `tournament_id` | *(leave empty)* | *(leave empty)* |
+| `participant_id` | *(leave empty)* | *(leave empty)* |
+
+4. Click **Save**.
 
 Your `Api Gateway Local` environment now has these variables:
 
@@ -110,6 +112,7 @@ Your `Api Gateway Local` environment now has these variables:
 | `refresh_token` | Filled automatically by the Login request |
 | `reset_token` | Filled automatically by the Forgot Password request |
 | `tournament_id` | Filled automatically after Create Tournament |
+| `participant_id` | Filled manually after seeding a participant via SQL (see Request 36) |
 
 > **Tip:** Every test in Part 2 assumes you run **Request 1 — Create Tournament** first so that `tournament_id` is populated. If you restart Postman or clear the environment, run Request 1 again before the GET/PATCH requests.
 
@@ -929,6 +932,196 @@ Expected: **409 Conflict**
 
 ---
 
+#### Request 33 — List Participants (empty)
+
+> **Pre-condition:** Create a fresh tournament (run Request 1). The `tournament_id` variable is populated.
+
+| Field | Value |
+|---|---|
+| Name | `List Participants` |
+| Method | `GET` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/participants` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": []
+}
+```
+
+**What to verify:**
+- `data` is an empty array — no participants yet. Participants are added through invitations (M8.7) or join requests (M8.8), not through this endpoint.
+- The response is `200`, not `404` — the tournament exists, it just has no participants.
+
+---
+
+#### Request 34 — List Participants — Tournament Not Found → 404
+
+Duplicate Request 33. Name it `List Participants — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/00000000-0000-0000-0000-000000000099/participants
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "TOURNAMENT_NOT_FOUND",
+    "message": "Tournament not found",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 35 — List Participants — No Token → 401
+
+Duplicate Request 33. Name it `List Participants — No Token`.
+
+Authorization tab → Type: **No Auth**.
+
+Expected: **401 Unauthorized** with `UNAUTHORIZED`.
+
+---
+
+#### Request 36 — Withdraw Participant (by participant)
+
+There is no HTTP endpoint yet to add a participant directly — that comes in M8.7 (invitations) and M8.8 (join requests). For now, seed one manually via SQL.
+
+> **Pre-condition:** Run this SQL in your database client against `tournament_db`. Replace `<your_tournament_id>` with the value from your `tournament_id` environment variable, and replace `<any_user_uuid>` with any valid UUID (it represents a second user ID — it does not need to exist in `auth_db` because there is no cross-service FK):
+> ```sql
+> INSERT INTO tournament_participants (tournament_id, user_id)
+> VALUES ('<your_tournament_id>', 'aaaaaaaa-0000-0000-0000-000000000001')
+> RETURNING id;
+> ```
+>
+> Copy the returned `id` and paste it into the `participant_id` variable in your **Api Gateway Local** environment.
+
+Create a new request:
+
+| Field | Value |
+|---|---|
+| Name | `Withdraw Participant` |
+| Method | `POST` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/participants/{{participant_id}}/withdraw` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+> **Important:** `{{access_token}}` belongs to your logged-in user (the tournament owner). But the participant `user_id` we inserted (`aaaaaaaa-0000-0000-0000-000000000001`) is a different user. This request succeeds because **the owner is allowed to withdraw any participant**. See Request 37 for why this is intentional.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "participant": {
+      "id": "{{participant_id}}",
+      "tournament_id": "{{tournament_id}}",
+      "user_id": "aaaaaaaa-0000-0000-0000-000000000001",
+      "status": "WITHDRAWN",
+      "withdrawn_at": "<timestamp>",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `WITHDRAWN`
+- `withdrawn_at` is set to a timestamp (it was `null` before)
+- `updated_at` is newer than `created_at`
+
+---
+
+#### Request 37 — Withdraw Participant — Third Party → 403
+
+> **Pre-condition:** Seed a fresh participant (re-run the SQL from Request 36 to get a new APPROVED row, or reset the previous one):
+> ```sql
+> UPDATE tournament_participants SET status = 'APPROVED', withdrawn_at = NULL WHERE id = '<your_participant_id>';
+> ```
+>
+> Or insert a new row and update `participant_id` in your environment.
+
+Duplicate Request 36. Name it `Withdraw Participant — Third Party`.
+
+Authorization tab → Type: **Bearer Token** → Token: use a **different user's** access token (register a second account, log in, copy that `access_token`).
+
+The second user is neither the participant (`aaaaaaaa-...`) nor the tournament owner — they should be blocked.
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the participant or tournament owner can withdraw a participant",
+    "details": null
+  }
+}
+```
+
+> If you do not have a second account, this case is fully covered by the automated tests.
+
+---
+
+#### Request 38 — Withdraw Participant — Already Withdrawn → 409
+
+> **Pre-condition:** Run Request 36 successfully so the participant is already `WITHDRAWN`.
+
+Duplicate Request 36. Name it `Withdraw Participant — Already Withdrawn`.
+
+Send it again **without resetting the participant status**. The participant is already `WITHDRAWN`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "PARTICIPANT_ALREADY_WITHDRAWN",
+    "message": "Participant has already withdrawn",
+    "details": null
+  }
+}
+```
+
+> Withdrawing twice is a no-op in intent, but the service rejects it cleanly rather than silently succeeding.
+
+---
+
+#### Request 39 — Withdraw Participant — Tournament Cancelled → 409
+
+> **Pre-condition:**
+> 1. Seed a fresh APPROVED participant (SQL from Request 36 — reset status or insert new row).
+> 2. Cancel the tournament via SQL:
+>    ```sql
+>    UPDATE tournaments SET status = 'CANCELLED' WHERE id = '<your_tournament_id>';
+>    ```
+
+Duplicate Request 36. Name it `Withdraw Participant — Tournament Cancelled`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "TOURNAMENT_NOT_MODIFIABLE",
+    "message": "Cannot withdraw from a tournament with status CANCELLED",
+    "details": null
+  }
+}
+```
+
+> CANCELLED and COMPLETED are terminal states. Participants cannot be withdrawn from a finished tournament.
+
+> **After this test:** Reset the tournament back to a non-terminal status so Request 33 and further tests still work:
+> ```sql
+> UPDATE tournaments SET status = 'DRAFT' WHERE id = '<your_tournament_id>';
+> ```
+
+---
+
 ### Step 7 — Run through the full sequence
 
 Work through the requests in this order to cover all scenarios:
@@ -981,6 +1174,20 @@ Work through the requests in this order to cover all scenarios:
     [Reset status to DRAFT via SQL]
 32. Cancel Tournament                              → 200, status = CANCELLED
 33. Cancel Tournament — Already Cancelled          → 409 INVALID_STATUS_TRANSITION (terminal)
+    [Reset status to DRAFT via SQL before participant tests]
+
+--- Participants ---
+34. List Participants                              → 200, empty data array
+35. List Participants — Not Found                  → 404 TOURNAMENT_NOT_FOUND
+36. List Participants — No Token                   → 401 UNAUTHORIZED
+    [Seed a participant via SQL — copy returned id into participant_id env variable]
+37. Withdraw Participant                           → 200, status = WITHDRAWN, withdrawn_at set
+38. Withdraw Participant — Third Party             → 403 FORBIDDEN (different user, not owner)
+    [Reset participant to APPROVED via SQL for next test]
+39. Withdraw Participant — Already Withdrawn       → 409 PARTICIPANT_ALREADY_WITHDRAWN (run after 37)
+    [Seed fresh participant via SQL]
+40. Withdraw Participant — Tournament Cancelled    → 409 TOURNAMENT_NOT_MODIFIABLE (cancel tournament via SQL first)
+    [Reset tournament to DRAFT via SQL after]
 ```
 
 ---
