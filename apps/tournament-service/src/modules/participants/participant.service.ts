@@ -52,6 +52,34 @@ export class ParticipantService {
     return participantRepository.create({ tournamentId, userId });
   }
 
+  async addParticipantViaInvitation(tournamentId: string, userId: string): Promise<Participant> {
+    const tournament = await tournamentRepository.findById(tournamentId);
+    if (!tournament) {
+      throw new AppError('TOURNAMENT_NOT_FOUND', 404, 'Tournament not found');
+    }
+
+    if (tournament.status !== 'REGISTRATION_OPEN') {
+      throw new AppError(
+        'REGISTRATION_NOT_OPEN',
+        409,
+        'Participants can only be added when registration is open',
+      );
+    }
+
+    const existing = await participantRepository.findByTournamentAndUser(tournamentId, userId);
+    if (existing && existing.status === 'APPROVED') {
+      throw new AppError('ALREADY_A_PARTICIPANT', 409, 'User is already an approved participant');
+    }
+
+    const capacity = deriveCapacity(tournament);
+    const currentCount = await participantRepository.countApproved(tournamentId);
+    if (currentCount >= capacity) {
+      throw new AppError('TOURNAMENT_FULL', 409, 'Tournament has reached maximum participant capacity');
+    }
+
+    return participantRepository.create({ tournamentId, userId });
+  }
+
   async withdrawParticipant(
     callerId: string,
     tournamentId: string,
