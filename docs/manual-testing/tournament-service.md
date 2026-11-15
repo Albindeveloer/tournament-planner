@@ -29,8 +29,8 @@ npm test --workspace=@tournament-planner/tournament-service
 
 Expected output:
 ```
-Test Files  4 passed (4)
-      Tests  68 passed (68)
+Test Files  5 passed (5)
+      Tests  89 passed (89)
 ```
 
 ---
@@ -94,12 +94,13 @@ All tournament requests go through the gateway. Do not use `Auth Service Local` 
 
 1. In Postman, click **Environments** in the left sidebar.
 2. Open **Api Gateway Local**.
-3. Click **Add a new variable** at the bottom of the variable list and add both rows:
+3. Click **Add a new variable** at the bottom of the variable list and add these rows:
 
 | Variable | Initial Value | Current Value |
 |---|---|---|
 | `tournament_id` | *(leave empty)* | *(leave empty)* |
 | `participant_id` | *(leave empty)* | *(leave empty)* |
+| `invitation_id` | *(leave empty)* | *(leave empty)* |
 
 4. Click **Save**.
 
@@ -113,6 +114,7 @@ Your `Api Gateway Local` environment now has these variables:
 | `reset_token` | Filled automatically by the Forgot Password request |
 | `tournament_id` | Filled automatically after Create Tournament |
 | `participant_id` | Filled manually after seeding a participant via SQL (see Request 36) |
+| `invitation_id` | Filled automatically after Create Invitation (see Request 40) |
 
 > **Tip:** Every test in Part 2 assumes you run **Request 1 — Create Tournament** first so that `tournament_id` is populated. If you restart Postman or clear the environment, run Request 1 again before the GET/PATCH requests.
 
@@ -1122,6 +1124,504 @@ Expected: **409 Conflict**
 
 ---
 
+---
+
+#### Request 40 — Create Invitation
+
+> **Pre-condition:** Create a fresh tournament (run Request 1). Open registration via Request 26 or:
+> ```sql
+> UPDATE tournaments SET status = 'REGISTRATION_OPEN' WHERE id = '<your_tournament_id>';
+> ```
+
+| Field | Value |
+|---|---|
+| Name | `Create Invitation` |
+| Method | `POST` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/invitations` |
+
+Authorization: Bearer Token → `{{access_token}}`.
+
+Body → raw → JSON:
+```json
+{
+  "invitee_id": "bbbbbbbb-0000-0000-0000-000000000001"
+}
+```
+
+> This UUID represents a second user. It does not need to exist in `auth_db` — there is no cross-service FK.
+
+Scripts → Post-response:
+```javascript
+const body = pm.response.json();
+if (body.data && body.data.invitation) {
+  pm.environment.set("invitation_id", body.data.invitation.id);
+}
+```
+
+Expected response — **201 Created**:
+```json
+{
+  "data": {
+    "invitation": {
+      "id": "<uuid>",
+      "tournament_id": "{{tournament_id}}",
+      "invitee_id": "bbbbbbbb-0000-0000-0000-000000000001",
+      "status": "PENDING",
+      "expires_at": null,
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `PENDING`
+- `invitation_id` is now saved — open the `Api Gateway Local` environment and confirm the Current Value column shows a UUID
+
+---
+
+#### Request 41 — Create Invitation — Not Owner → 403
+
+Duplicate Request 40. Name it `Create Invitation — Not Owner`.
+
+Authorization tab → Type: **Bearer Token** → Token: use a **different user's** access token.
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can send invitations",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 42 — Create Invitation — Tournament Not Found → 404
+
+Duplicate Request 40. Name it `Create Invitation — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/00000000-0000-0000-0000-000000000099/invitations
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "TOURNAMENT_NOT_FOUND",
+    "message": "Tournament not found",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 43 — Create Invitation — Registration Not Open → 409
+
+> **Pre-condition:** Reset the tournament to `DRAFT`:
+> ```sql
+> UPDATE tournaments SET status = 'DRAFT' WHERE id = '<your_tournament_id>';
+> ```
+
+Duplicate Request 40. Name it `Create Invitation — Registration Not Open`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "REGISTRATION_NOT_OPEN",
+    "message": "Invitations can only be sent when registration is open",
+    "details": null
+  }
+}
+```
+
+> **After this test:** Set the tournament back to `REGISTRATION_OPEN` before continuing:
+> ```sql
+> UPDATE tournaments SET status = 'REGISTRATION_OPEN' WHERE id = '<your_tournament_id>';
+> ```
+
+---
+
+#### Request 44 — Create Invitation — Self-Invite → 409
+
+Duplicate Request 40. Name it `Create Invitation — Self Invite`.
+
+Change the body `invitee_id` to your own user UUID (the same user who owns the tournament). To find your UUID: paste your `access_token` into [jwt.io](https://jwt.io) — the `sub` field is your user ID.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "CANNOT_INVITE_SELF",
+    "message": "Owner cannot invite themselves",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 45 — Create Invitation — Already a Participant → 409
+
+> **Pre-condition:** Seed an APPROVED participant with the same user UUID you are about to invite:
+> ```sql
+> INSERT INTO tournament_participants (tournament_id, user_id)
+> VALUES ('<your_tournament_id>', 'bbbbbbbb-0000-0000-0000-000000000001');
+> ```
+
+Duplicate Request 40. Name it `Create Invitation — Already Participant`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "ALREADY_A_PARTICIPANT",
+    "message": "User is already an approved participant",
+    "details": null
+  }
+}
+```
+
+> **After this test:** Delete that participant row so it does not interfere with subsequent requests:
+> ```sql
+> DELETE FROM tournament_participants WHERE tournament_id = '<your_tournament_id>' AND user_id = 'bbbbbbbb-0000-0000-0000-000000000001';
+> ```
+
+---
+
+#### Request 46 — Create Invitation — Duplicate Pending → 409
+
+> **Pre-condition:** Run Request 40 to create a PENDING invitation. `invitation_id` is now set.
+
+Duplicate Request 40. Name it `Create Invitation — Duplicate Pending`.
+
+Send it again **without cancelling the existing invitation**.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "PENDING_INVITATION_EXISTS",
+    "message": "A pending invitation already exists for this user",
+    "details": null
+  }
+}
+```
+
+> The partial unique index (`WHERE status = 'PENDING'`) enforces this. Once the existing invitation is cancelled or rejected, the owner can send a new one.
+
+---
+
+#### Request 47 — List Invitations
+
+| Field | Value |
+|---|---|
+| Name | `List Invitations` |
+| Method | `GET` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/invitations` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": [
+    {
+      "id": "{{invitation_id}}",
+      "tournament_id": "{{tournament_id}}",
+      "invitee_id": "bbbbbbbb-0000-0000-0000-000000000001",
+      "status": "PENDING",
+      "expires_at": null,
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  ]
+}
+```
+
+**What to verify:**
+- `data` is an array containing the invitation you created in Request 40
+- All returned items belong to this tournament
+
+---
+
+#### Request 48 — List Invitations — Not Owner → 403
+
+Duplicate Request 47. Name it `List Invitations — Not Owner`.
+
+Authorization tab → Type: **Bearer Token** → Token: use a **different user's** access token.
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can list invitations",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 49 — List Invitations — Tournament Not Found → 404
+
+Duplicate Request 47. Name it `List Invitations — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/00000000-0000-0000-0000-000000000099/invitations
+```
+
+Expected: **404 Not Found** with `TOURNAMENT_NOT_FOUND`.
+
+---
+
+#### Request 50 — Accept Invitation
+
+> **Pre-condition:** A PENDING invitation must exist for user `bbbbbbbb-0000-0000-0000-000000000001`. Run Request 40 if `invitation_id` is not set or was already acted on.
+
+| Field | Value |
+|---|---|
+| Name | `Accept Invitation` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/invitations/{{invitation_id}}` |
+
+Authorization tab → Type: **Bearer Token** → Token: use the **invitee's** access token (register as `bbbbbbbb-...` or use a second account whose UUID you placed in the invitation body).
+
+Body → raw → JSON:
+```json
+{
+  "status": "ACCEPTED"
+}
+```
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "invitation": {
+      "id": "{{invitation_id}}",
+      "tournament_id": "{{tournament_id}}",
+      "invitee_id": "<invitee uuid>",
+      "status": "ACCEPTED",
+      "expires_at": null,
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `ACCEPTED`
+- Run Request 33 (List Participants) — the invitee now appears as an `APPROVED` participant
+- `updated_at` is newer than `created_at`
+
+> **Why this matters:** Accepting an invitation is the primary way players become participants in an invitation-only tournament. The service atomically updates the invitation status and creates the participant row.
+
+---
+
+#### Request 51 — Reject Invitation
+
+> **Pre-condition:** Create a fresh PENDING invitation (run Request 40 again after cancelling or accepting the previous one, or use a new invitee UUID).
+
+Duplicate Request 50. Name it `Reject Invitation`.
+
+Body → raw → JSON:
+```json
+{
+  "status": "REJECTED"
+}
+```
+
+Authorization: use the **invitee's** token.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "invitation": {
+      "status": "REJECTED",
+      ...
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `REJECTED`
+- Running List Participants (Request 33) confirms **no new participant was created** — rejection does not add the user
+
+---
+
+#### Request 52 — Cancel Invitation (by owner)
+
+> **Pre-condition:** Create a fresh PENDING invitation (run Request 40).
+
+| Field | Value |
+|---|---|
+| Name | `Cancel Invitation` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/invitations/{{invitation_id}}` |
+
+Authorization: Bearer Token → `{{access_token}}` (the **owner's** token).
+
+Body → raw → JSON:
+```json
+{
+  "status": "CANCELLED"
+}
+```
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "invitation": {
+      "status": "CANCELLED",
+      ...
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `CANCELLED`
+- Run Request 40 again with the same `invitee_id` — it should now succeed with 201 (the CANCELLED invitation does not block re-inviting)
+
+---
+
+#### Request 53 — Update Invitation — Not Pending → 409
+
+> **Pre-condition:** Run Request 51 or 52 so the invitation is no longer PENDING.
+
+Duplicate Request 50. Name it `Update Invitation — Not Pending`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "INVITATION_NOT_PENDING",
+    "message": "Invitation cannot be updated from status REJECTED",
+    "details": null
+  }
+}
+```
+
+> Once an invitation reaches any terminal status (ACCEPTED, REJECTED, CANCELLED), it cannot be updated again.
+
+---
+
+#### Request 54 — Accept Invitation — Not the Invitee → 403
+
+> **Pre-condition:** Create a fresh PENDING invitation (run Request 40).
+
+Duplicate Request 50. Name it `Accept Invitation — Not Invitee`.
+
+Authorization: Bearer Token → `{{access_token}}` (the **owner's** token, not the invitee).
+
+Body:
+```json
+{
+  "status": "ACCEPTED"
+}
+```
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the invited user can accept or reject an invitation",
+    "details": null
+  }
+}
+```
+
+> Only the specific invitee can accept or reject. The owner cannot accept on their behalf.
+
+---
+
+#### Request 55 — Cancel Invitation — Not the Owner → 403
+
+> **Pre-condition:** A PENDING invitation must still exist (from Request 40 or a fresh one).
+
+Duplicate Request 52. Name it `Cancel Invitation — Not Owner`.
+
+Authorization tab → Type: **Bearer Token** → Token: use the **invitee's** access token.
+
+Body:
+```json
+{
+  "status": "CANCELLED"
+}
+```
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can cancel an invitation",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 56 — Update Invitation — Not Found → 404
+
+| Field | Value |
+|---|---|
+| Name | `Update Invitation — Not Found` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/invitations/00000000-0000-0000-0000-000000000099` |
+
+Authorization: Bearer Token → `{{access_token}}`.
+
+Body:
+```json
+{
+  "status": "ACCEPTED"
+}
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "INVITATION_NOT_FOUND",
+    "message": "Invitation not found",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 57 — Re-invite After Cancel → 201
+
+> **Pre-condition:** Cancel an invitation (run Request 52). The invitee now has a CANCELLED invitation.
+
+Duplicate Request 40. Name it `Re-invite After Cancel`.
+
+Send it with the same `invitee_id`.
+
+Expected: **201 Created** — a new PENDING invitation is created.
+
+> This confirms the partial unique index design: only one PENDING invitation is blocked per invitee, but once the previous one is cancelled the owner can send a fresh invitation.
+
+---
+
 ### Step 7 — Run through the full sequence
 
 Work through the requests in this order to cover all scenarios:
@@ -1187,7 +1687,28 @@ Work through the requests in this order to cover all scenarios:
 39. Withdraw Participant — Already Withdrawn       → 409 PARTICIPANT_ALREADY_WITHDRAWN (run after 37)
     [Seed fresh participant via SQL]
 40. Withdraw Participant — Tournament Cancelled    → 409 TOURNAMENT_NOT_MODIFIABLE (cancel tournament via SQL first)
-    [Reset tournament to DRAFT via SQL after]
+    [Reset tournament to REGISTRATION_OPEN via SQL after]
+
+--- Invitations ---
+41. Create Invitation                              → 201, invitation_id saved, status = PENDING
+42. Create Invitation — Not Owner                  → 403 FORBIDDEN
+43. Create Invitation — Not Found                  → 404 TOURNAMENT_NOT_FOUND
+44. Create Invitation — Registration Not Open      → 409 REGISTRATION_NOT_OPEN (reset to DRAFT first, restore after)
+45. Create Invitation — Self Invite                → 409 CANNOT_INVITE_SELF
+46. Create Invitation — Already Participant        → 409 ALREADY_A_PARTICIPANT (seed participant first, clean up after)
+47. Create Invitation — Duplicate Pending          → 409 PENDING_INVITATION_EXISTS (send 41 twice)
+48. List Invitations                               → 200, array with the pending invitation
+49. List Invitations — Not Owner                   → 403 FORBIDDEN
+50. List Invitations — Not Found                   → 404 TOURNAMENT_NOT_FOUND
+51. Accept Invitation                              → 200, status = ACCEPTED; participant appears in List Participants
+52. Reject Invitation                              → 200, status = REJECTED; no participant created
+    [Create fresh invitation for next test]
+53. Cancel Invitation                              → 200, status = CANCELLED (owner's token)
+54. Update Invitation — Not Pending                → 409 INVITATION_NOT_PENDING (send after 52 or 53)
+55. Accept Invitation — Not Invitee                → 403 FORBIDDEN (owner token tries to accept)
+56. Cancel Invitation — Not Owner                  → 403 FORBIDDEN (invitee token tries to cancel)
+57. Update Invitation — Not Found                  → 404 INVITATION_NOT_FOUND
+58. Re-invite After Cancel                         → 201 (cancel first via 53, then re-invite same user)
 ```
 
 ---
