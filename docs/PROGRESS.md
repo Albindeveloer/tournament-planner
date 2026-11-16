@@ -313,11 +313,24 @@ Invitations
 
 M8.7 Invitations — COMPLETED
 
+Public Join Requests
+
+- [x] JoinRequestRepository: create, findById, findByTournamentId, findPendingByTournamentAndUser, updateStatus
+- [x] JoinRequestService: createJoinRequest (REGISTRATION_OPEN guard, owner-self-join guard, duplicate-pending guard, already-participant guard), listJoinRequests (owner-only), updateJoinRequest (owner approves/rejects, requester cancels)
+- [x] Approval delegates to approveParticipant — reuses capacity, deduplication, and registration-open guards
+- [x] POST /api/v1/tournaments/:id/join-requests — any authenticated non-owner player
+- [x] GET /api/v1/tournaments/:id/join-requests — owner-only
+- [x] PATCH /api/v1/tournaments/:id/join-requests/:joinRequestId — APPROVED | REJECTED (owner) | CANCELLED (requester)
+- [x] 19 new tests (6 POST, 3 GET, 10 PATCH) — all 108 tests passing
+- [x] Typecheck passed
+
+M8.8 Public Join Requests — COMPLETED
+
 ---
 
 Current Task
 
-M8.8 — Public Join Requests
+M8.9 — Captain Requests
 
 ---
 
