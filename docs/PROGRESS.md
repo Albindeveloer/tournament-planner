@@ -297,11 +297,27 @@ Participant Management
 
 M8.6 Participant Management — COMPLETED
 
+Invitations
+
+- [x] InvitationRepository: create, findById, findByTournamentId, findPendingByTournamentAndInvitee, updateStatus
+- [x] InvitationService: createInvitation (owner-only, REGISTRATION_OPEN guard, self-invite guard, duplicate-pending guard), listInvitations (owner-only), updateInvitation (invitee accepts/rejects, owner cancels)
+- [x] Accepting an invitation calls addParticipantViaInvitation — enforces capacity, REGISTRATION_OPEN, deduplication without repeating logic
+- [x] ParticipantService: addParticipantViaInvitation added (internal method, skips owner check)
+- [x] POST /api/v1/tournaments/:id/invitations — owner-only, body: { invitee_id: uuid }
+- [x] GET /api/v1/tournaments/:id/invitations — owner-only
+- [x] PATCH /api/v1/tournaments/:id/invitations/:invitationId — status: ACCEPTED | REJECTED | CANCELLED
+- [x] 21 new tests passing (7 POST, 4 GET, 10 PATCH)
+- [x] All 89 tests passing (68 prior + 21 invitations)
+- [x] Typecheck passed
+- [x] Manual testing guide updated (docs/manual-testing/tournament-service.md)
+
+M8.7 Invitations — COMPLETED
+
 ---
 
 Current Task
 
-M8.7 — Invitations
+M8.8 — Public Join Requests
 
 ---
 
