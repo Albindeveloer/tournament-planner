@@ -326,11 +326,26 @@ Public Join Requests
 
 M8.8 Public Join Requests — COMPLETED
 
+Captain Requests
+
+- [x] CaptainRequestRepository: create, findById, findByTournamentId, findByTournamentAndParticipant, updateStatus
+- [x] CaptainRequestService: createCaptainRequest (approved-participant-only, REGISTRATION_OPEN guard, full-UNIQUE duplicate guard), listCaptainRequests (owner-only), updateCaptainRequest (owner rejects, participant cancels)
+- [x] Participant lookup on CANCELLED path: resolves participant_id → user_id to verify caller owns the request
+- [x] POST /api/v1/tournaments/:id/captain-requests — approved participants only
+- [x] GET /api/v1/tournaments/:id/captain-requests — owner-only
+- [x] PATCH /api/v1/tournaments/:id/captain-requests/:captainRequestId — REJECTED (owner) | CANCELLED (participant)
+- [x] Full UNIQUE(tournament_id, participant_id) — re-submission blocked even after rejection/cancellation (unlike join requests which use partial UNIQUE on PENDING)
+- [x] 15 new tests (5 POST, 3 GET, 7 PATCH) — all 123 tests passing
+- [x] Typecheck passed
+- [x] Manual testing guide updated (docs/manual-testing/tournament-service.md)
+
+M8.9 Captain Requests — COMPLETED
+
 ---
 
 Current Task
 
-M8.9 — Captain Requests
+M8.10 — Team Creation
 
 ---
 
