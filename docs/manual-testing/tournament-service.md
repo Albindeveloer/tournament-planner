@@ -29,8 +29,8 @@ npm test --workspace=@tournament-planner/tournament-service
 
 Expected output:
 ```
-Test Files  5 passed (5)
-      Tests  89 passed (89)
+Test Files  7 passed (7)
+      Tests  123 passed (123)
 ```
 
 ---
@@ -101,6 +101,8 @@ All tournament requests go through the gateway. Do not use `Auth Service Local` 
 | `tournament_id` | *(leave empty)* | *(leave empty)* |
 | `participant_id` | *(leave empty)* | *(leave empty)* |
 | `invitation_id` | *(leave empty)* | *(leave empty)* |
+| `join_request_id` | *(leave empty)* | *(leave empty)* |
+| `captain_request_id` | *(leave empty)* | *(leave empty)* |
 
 4. Click **Save**.
 
@@ -115,6 +117,8 @@ Your `Api Gateway Local` environment now has these variables:
 | `tournament_id` | Filled automatically after Create Tournament |
 | `participant_id` | Filled manually after seeding a participant via SQL (see Request 36) |
 | `invitation_id` | Filled automatically after Create Invitation (see Request 40) |
+| `join_request_id` | Filled automatically after Submit Join Request (see Request 58) |
+| `captain_request_id` | Filled automatically after Submit Captain Request (see Request 74) |
 
 > **Tip:** Every test in Part 2 assumes you run **Request 1 — Create Tournament** first so that `tournament_id` is populated. If you restart Postman or clear the environment, run Request 1 again before the GET/PATCH requests.
 
@@ -1622,6 +1626,836 @@ Expected: **201 Created** — a new PENDING invitation is created.
 
 ---
 
+---
+
+#### Request 58 — Submit Join Request
+
+> **Pre-condition:** Create a fresh tournament (run Request 1). Open registration via Request 26 or:
+> ```sql
+> UPDATE tournaments SET status = 'REGISTRATION_OPEN' WHERE id = '<your_tournament_id>';
+> ```
+>
+> This request must be sent with a **different user's** access token — not the owner's. Register a second account and log in as that user to get a second `access_token`. Alternatively, see Request 61 to understand what happens when the owner tries to join.
+
+| Field | Value |
+|---|---|
+| Name | `Submit Join Request` |
+| Method | `POST` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/join-requests` |
+
+Authorization: Bearer Token → second user's `access_token` (not the owner).
+
+No body — the player's identity comes from the `x-user-id` header injected by the gateway.
+
+Scripts → Post-response:
+```javascript
+const body = pm.response.json();
+if (body.data && body.data.join_request) {
+  pm.environment.set("join_request_id", body.data.join_request.id);
+}
+```
+
+Expected response — **201 Created**:
+```json
+{
+  "data": {
+    "join_request": {
+      "id": "<uuid>",
+      "tournament_id": "{{tournament_id}}",
+      "user_id": "<second user uuid>",
+      "status": "PENDING",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `PENDING`
+- `user_id` matches the second user's UUID (not the owner's)
+- `join_request_id` is now saved — open the `Api Gateway Local` environment and confirm the Current Value column shows a UUID
+
+---
+
+#### Request 59 — Submit Join Request — Tournament Not Found → 404
+
+Duplicate Request 58. Name it `Submit Join Request — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/00000000-0000-0000-0000-000000000099/join-requests
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "TOURNAMENT_NOT_FOUND",
+    "message": "Tournament not found",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 60 — Submit Join Request — Registration Not Open → 409
+
+> **Pre-condition:** Reset the tournament to `DRAFT`:
+> ```sql
+> UPDATE tournaments SET status = 'DRAFT' WHERE id = '<your_tournament_id>';
+> ```
+
+Duplicate Request 58. Name it `Submit Join Request — Registration Not Open`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "REGISTRATION_NOT_OPEN",
+    "message": "Join requests can only be submitted when registration is open",
+    "details": null
+  }
+}
+```
+
+> **After this test:** Set the tournament back to `REGISTRATION_OPEN` before continuing:
+> ```sql
+> UPDATE tournaments SET status = 'REGISTRATION_OPEN' WHERE id = '<your_tournament_id>';
+> ```
+
+---
+
+#### Request 61 — Submit Join Request — Owner Cannot Join Own Tournament → 409
+
+Duplicate Request 58. Name it `Submit Join Request — Owner Blocked`.
+
+Authorization tab → Type: **Bearer Token** → Token: `{{access_token}}` (the **owner's** token).
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "CANNOT_JOIN_OWN_TOURNAMENT",
+    "message": "The tournament owner cannot submit a join request",
+    "details": null
+  }
+}
+```
+
+> This is the symmetric rule to the invitation self-invite guard. The owner runs the tournament — they cannot be a participant in it.
+
+---
+
+#### Request 62 — Submit Join Request — Already a Participant → 409
+
+> **Pre-condition:** Seed an APPROVED participant row for the second user:
+> ```sql
+> INSERT INTO tournament_participants (tournament_id, user_id)
+> VALUES ('<your_tournament_id>', '<second user uuid>');
+> ```
+
+Duplicate Request 58. Name it `Submit Join Request — Already Participant`.
+
+Authorization: second user's token.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "ALREADY_A_PARTICIPANT",
+    "message": "User is already an approved participant",
+    "details": null
+  }
+}
+```
+
+> **After this test:** Delete that participant row so it does not interfere with subsequent requests:
+> ```sql
+> DELETE FROM tournament_participants WHERE tournament_id = '<your_tournament_id>' AND user_id = '<second user uuid>';
+> ```
+
+---
+
+#### Request 63 — Submit Join Request — Duplicate Pending → 409
+
+> **Pre-condition:** Run Request 58 to create a PENDING join request. `join_request_id` is now set.
+
+Duplicate Request 58. Name it `Submit Join Request — Duplicate Pending`.
+
+Send it again **without cancelling the existing request**.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "PENDING_JOIN_REQUEST_EXISTS",
+    "message": "A pending join request already exists for this user",
+    "details": null
+  }
+}
+```
+
+> The partial unique index (`WHERE status = 'PENDING'`) enforces this. Once the existing request is rejected or cancelled, the player can submit a new one.
+
+---
+
+#### Request 64 — List Join Requests
+
+| Field | Value |
+|---|---|
+| Name | `List Join Requests` |
+| Method | `GET` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/join-requests` |
+
+No body. Authorization: Bearer Token → `{{access_token}}` (the **owner's** token).
+
+Expected response — **200 OK**:
+```json
+{
+  "data": [
+    {
+      "id": "{{join_request_id}}",
+      "tournament_id": "{{tournament_id}}",
+      "user_id": "<second user uuid>",
+      "status": "PENDING",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  ]
+}
+```
+
+**What to verify:**
+- `data` is an array containing the join request submitted in Request 58
+- All items belong to this tournament
+
+---
+
+#### Request 65 — List Join Requests — Not Owner → 403
+
+Duplicate Request 64. Name it `List Join Requests — Not Owner`.
+
+Authorization tab → Type: **Bearer Token** → Token: use the **second user's** access token (the same user who submitted the join request).
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can list join requests",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 66 — List Join Requests — Tournament Not Found → 404
+
+Duplicate Request 64. Name it `List Join Requests — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/00000000-0000-0000-0000-000000000099/join-requests
+```
+
+Expected: **404 Not Found** with `TOURNAMENT_NOT_FOUND`.
+
+---
+
+#### Request 67 — Approve Join Request
+
+> **Pre-condition:** A PENDING join request must exist (`join_request_id` is set from Request 58). The tournament must be in `REGISTRATION_OPEN`.
+
+| Field | Value |
+|---|---|
+| Name | `Approve Join Request` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/join-requests/{{join_request_id}}` |
+
+Authorization: Bearer Token → `{{access_token}}` (the **owner's** token).
+
+Body → raw → JSON:
+```json
+{
+  "status": "APPROVED"
+}
+```
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "join_request": {
+      "id": "{{join_request_id}}",
+      "tournament_id": "{{tournament_id}}",
+      "user_id": "<second user uuid>",
+      "status": "APPROVED",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `APPROVED`
+- Run Request 33 (List Participants) — the second user now appears as an `APPROVED` participant
+- `updated_at` is newer than `created_at`
+
+> **Why this matters:** Approving a join request is the public-link equivalent of accepting an invitation. The service atomically updates the join request status and creates the participant row via the same `approveParticipant` method used by the invitation flow — the capacity check runs in the same place for both paths.
+
+---
+
+#### Request 68 — Reject Join Request
+
+> **Pre-condition:** Create a fresh PENDING join request (run Request 58 with a user that has no existing pending request, or cancel the previous one and re-submit).
+
+| Field | Value |
+|---|---|
+| Name | `Reject Join Request` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/join-requests/{{join_request_id}}` |
+
+Authorization: Bearer Token → `{{access_token}}` (the **owner's** token).
+
+Body → raw → JSON:
+```json
+{
+  "status": "REJECTED"
+}
+```
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "join_request": {
+      "status": "REJECTED",
+      ...
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `REJECTED`
+- Running List Participants (Request 33) confirms **no new participant was created** — rejection does not add the user
+- The player can submit a new join request after rejection (the partial unique index only blocks PENDING duplicates)
+
+---
+
+#### Request 69 — Cancel Join Request (by the requesting player)
+
+> **Pre-condition:** Create a fresh PENDING join request (run Request 58).
+
+| Field | Value |
+|---|---|
+| Name | `Cancel Join Request` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/join-requests/{{join_request_id}}` |
+
+Authorization tab → Type: **Bearer Token** → Token: use the **second user's** access token (the player who submitted the request).
+
+Body → raw → JSON:
+```json
+{
+  "status": "CANCELLED"
+}
+```
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "join_request": {
+      "status": "CANCELLED",
+      ...
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `CANCELLED`
+- Run Request 58 again with the same user — it should succeed with 201 (the CANCELLED request does not block re-applying)
+
+> This is the inverse of the invitation cancel: here it is the **player** who cancels, not the owner. If the owner wants to remove a pending request they must reject it (Request 68).
+
+---
+
+#### Request 70 — Approve Join Request — Not Owner → 403
+
+> **Pre-condition:** A PENDING join request must exist.
+
+Duplicate Request 67. Name it `Approve Join Request — Not Owner`.
+
+Authorization tab → Type: **Bearer Token** → Token: use the **second user's** access token (the same user who submitted the request).
+
+Body:
+```json
+{
+  "status": "APPROVED"
+}
+```
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can approve or reject join requests",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 71 — Cancel Join Request — Not the Requester → 403
+
+> **Pre-condition:** A PENDING join request must exist from the second user.
+
+| Field | Value |
+|---|---|
+| Name | `Cancel Join Request — Not Requester` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/join-requests/{{join_request_id}}` |
+
+Authorization: Bearer Token → `{{access_token}}` (the **owner's** token — a different user from the requester).
+
+Body:
+```json
+{
+  "status": "CANCELLED"
+}
+```
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the requesting user can cancel their join request",
+    "details": null
+  }
+}
+```
+
+> Only the player who submitted the request can cancel it. The owner must use `REJECTED` to remove a pending request.
+
+---
+
+#### Request 72 — Update Join Request — Not Pending → 409
+
+> **Pre-condition:** Run Request 68 or 69 so the join request is no longer PENDING.
+
+Duplicate Request 67. Name it `Update Join Request — Not Pending`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "JOIN_REQUEST_NOT_PENDING",
+    "message": "Join request cannot be updated from status REJECTED",
+    "details": null
+  }
+}
+```
+
+> Once a join request reaches any terminal status (APPROVED, REJECTED, CANCELLED), it cannot be updated again.
+
+---
+
+#### Request 73 — Update Join Request — Not Found → 404
+
+| Field | Value |
+|---|---|
+| Name | `Update Join Request — Not Found` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/join-requests/00000000-0000-0000-0000-000000000099` |
+
+Authorization: Bearer Token → `{{access_token}}`.
+
+Body:
+```json
+{
+  "status": "APPROVED"
+}
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "JOIN_REQUEST_NOT_FOUND",
+    "message": "Join request not found",
+    "details": null
+  }
+}
+```
+
+---
+
+---
+
+#### Request 74 — Submit Captain Request
+
+> **Pre-condition:** Create a fresh tournament (run Request 1). Open registration (Request 26 or SQL). The request must come from an **approved participant** — not the owner.
+>
+> Seed an approved participant for the second user:
+> ```sql
+> INSERT INTO tournament_participants (tournament_id, user_id)
+> VALUES ('<your_tournament_id>', '<second user uuid>');
+> ```
+>
+> This request must be sent with the **second user's** access token.
+
+| Field | Value |
+|---|---|
+| Name | `Submit Captain Request` |
+| Method | `POST` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/captain-requests` |
+
+Authorization: Bearer Token → second user's `access_token`.
+
+No body — the participant is identified by the `x-user-id` header injected by the gateway.
+
+Scripts → Post-response:
+```javascript
+const body = pm.response.json();
+if (body.data && body.data.captain_request) {
+  pm.environment.set("captain_request_id", body.data.captain_request.id);
+}
+```
+
+Expected response — **201 Created**:
+```json
+{
+  "data": {
+    "captain_request": {
+      "id": "<uuid>",
+      "tournament_id": "{{tournament_id}}",
+      "participant_id": "<participant uuid>",
+      "status": "PENDING",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `PENDING`
+- `participant_id` is the participant's row UUID (not the user's UUID — it references `tournament_participants.id`)
+- `captain_request_id` is now saved — open the `Api Gateway Local` environment and confirm the Current Value column shows a UUID
+
+> **Why `participant_id` and not `user_id`?** Unlike join requests, a captain request references the `tournament_participants` row rather than the raw user UUID. This enforces that only approved participants can express interest, and the unique constraint (`UNIQUE(tournament_id, participant_id)`) lives on the participant record — not the user identity.
+
+---
+
+#### Request 75 — Submit Captain Request — Tournament Not Found → 404
+
+Duplicate Request 74. Name it `Submit Captain Request — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/00000000-0000-0000-0000-000000000099/captain-requests
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "TOURNAMENT_NOT_FOUND",
+    "message": "Tournament not found",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 76 — Submit Captain Request — Registration Not Open → 409
+
+> **Pre-condition:** Reset the tournament to `DRAFT`:
+> ```sql
+> UPDATE tournaments SET status = 'DRAFT' WHERE id = '<your_tournament_id>';
+> ```
+
+Duplicate Request 74. Name it `Submit Captain Request — Registration Not Open`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "REGISTRATION_NOT_OPEN",
+    "message": "Captain requests can only be submitted when registration is open",
+    "details": null
+  }
+}
+```
+
+> **After this test:** Set the tournament back to `REGISTRATION_OPEN` before continuing:
+> ```sql
+> UPDATE tournaments SET status = 'REGISTRATION_OPEN' WHERE id = '<your_tournament_id>';
+> ```
+
+---
+
+#### Request 77 — Submit Captain Request — Not a Participant → 403
+
+Duplicate Request 74. Name it `Submit Captain Request — Not Participant`.
+
+Authorization tab → Type: **Bearer Token** → Token: `{{access_token}}` (the **owner's** token — the owner is not a participant).
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "NOT_A_PARTICIPANT",
+    "message": "Only approved participants can submit a captain request",
+    "details": null
+  }
+}
+```
+
+> This also fires for any user who is not in `tournament_participants` for this tournament with status `APPROVED` — not just the owner.
+
+---
+
+#### Request 78 — Submit Captain Request — Duplicate → 409
+
+> **Pre-condition:** Run Request 74 so a captain request already exists. `captain_request_id` is set.
+
+Duplicate Request 74. Name it `Submit Captain Request — Duplicate`.
+
+Send it again **without cancelling or rejecting the existing request**.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "CAPTAIN_REQUEST_ALREADY_EXISTS",
+    "message": "A captain request already exists for this participant",
+    "details": null
+  }
+}
+```
+
+> **Why is this different from join requests?** Join requests use a *partial* unique index on `PENDING` only — a player can re-request after rejection. Captain requests use a *full* unique constraint on `(tournament_id, participant_id)` — once a request exists (in any status), it cannot be re-submitted. This is by design: the captain request is an interest/audit record, not a repeated application flow. See Request 85 for confirmation that this also blocks re-submission after cancellation.
+
+---
+
+#### Request 79 — List Captain Requests
+
+| Field | Value |
+|---|---|
+| Name | `List Captain Requests` |
+| Method | `GET` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/captain-requests` |
+
+No body. Authorization: Bearer Token → `{{access_token}}` (the **owner's** token).
+
+Expected response — **200 OK**:
+```json
+{
+  "data": [
+    {
+      "id": "{{captain_request_id}}",
+      "tournament_id": "{{tournament_id}}",
+      "participant_id": "<participant uuid>",
+      "status": "PENDING",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  ]
+}
+```
+
+**What to verify:**
+- `data` is an array containing the captain request submitted in Request 74
+- All items belong to this tournament
+
+---
+
+#### Request 80 — List Captain Requests — Not Owner → 403
+
+Duplicate Request 79. Name it `List Captain Requests — Not Owner`.
+
+Authorization tab → Type: **Bearer Token** → Token: use the **second user's** access token.
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can list captain requests",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 81 — Reject Captain Request (by owner)
+
+> **Pre-condition:** A PENDING captain request must exist (`captain_request_id` is set from Request 74).
+
+| Field | Value |
+|---|---|
+| Name | `Reject Captain Request` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/captain-requests/{{captain_request_id}}` |
+
+Authorization: Bearer Token → `{{access_token}}` (the **owner's** token).
+
+Body → raw → JSON:
+```json
+{
+  "status": "REJECTED"
+}
+```
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "captain_request": {
+      "id": "{{captain_request_id}}",
+      "tournament_id": "{{tournament_id}}",
+      "participant_id": "<participant uuid>",
+      "status": "REJECTED",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `REJECTED`
+- `updated_at` is newer than `created_at`
+
+> Rejecting a captain request does not remove the user as a participant. They remain an approved participant — the owner simply indicated they will not be captain.
+
+---
+
+#### Request 82 — Cancel Captain Request (by participant)
+
+> **Pre-condition:** Create a fresh PENDING captain request. If you just ran Request 81, you need to seed a new captain request. Because the full unique constraint blocks re-submission, the easiest way is to create a **new participant** (a third user), seed them as approved, and have them submit a captain request:
+> ```sql
+> INSERT INTO tournament_participants (tournament_id, user_id)
+> VALUES ('<your_tournament_id>', 'cccccccc-0000-0000-0000-000000000001');
+> ```
+> Then run Request 74 as that third user and save the new `captain_request_id`.
+
+| Field | Value |
+|---|---|
+| Name | `Cancel Captain Request` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/captain-requests/{{captain_request_id}}` |
+
+Authorization tab → Type: **Bearer Token** → Token: use the **participant's** access token (the user who submitted the captain request).
+
+Body → raw → JSON:
+```json
+{
+  "status": "CANCELLED"
+}
+```
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "captain_request": {
+      "status": "CANCELLED",
+      ...
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `CANCELLED`
+
+---
+
+#### Request 83 — Update Captain Request — Not Pending → 409
+
+> **Pre-condition:** Run Request 81 or 82 so the captain request is no longer PENDING.
+
+Duplicate Request 81. Name it `Update Captain Request — Not Pending`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "CAPTAIN_REQUEST_NOT_PENDING",
+    "message": "Captain request cannot be updated from status REJECTED",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 84 — Update Captain Request — Not Found → 404
+
+| Field | Value |
+|---|---|
+| Name | `Update Captain Request — Not Found` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/captain-requests/00000000-0000-0000-0000-000000000099` |
+
+Authorization: Bearer Token → `{{access_token}}`.
+
+Body → raw → JSON:
+```json
+{
+  "status": "REJECTED"
+}
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "CAPTAIN_REQUEST_NOT_FOUND",
+    "message": "Captain request not found",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 85 — Re-submit After Cancellation → 409 (Full UNIQUE)
+
+> **Pre-condition:** Run Request 82 so the participant's captain request is `CANCELLED`.
+
+Duplicate Request 74. Name it `Submit Captain Request — Blocked After Cancel`.
+
+Send it with the **same participant's** access token.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "CAPTAIN_REQUEST_ALREADY_EXISTS",
+    "message": "A captain request already exists for this participant",
+    "details": null
+  }
+}
+```
+
+> This confirms the full `UNIQUE(tournament_id, participant_id)` constraint. Unlike join requests (partial index on PENDING), a cancelled captain request permanently blocks re-submission. The cancelled record stays in the database as an audit trail.
+
+---
+
 ### Step 7 — Run through the full sequence
 
 Work through the requests in this order to cover all scenarios:
@@ -1709,6 +2543,43 @@ Work through the requests in this order to cover all scenarios:
 56. Cancel Invitation — Not Owner                  → 403 FORBIDDEN (invitee token tries to cancel)
 57. Update Invitation — Not Found                  → 404 INVITATION_NOT_FOUND
 58. Re-invite After Cancel                         → 201 (cancel first via 53, then re-invite same user)
+
+--- Join Requests ---
+    [Pre-condition: tournament is REGISTRATION_OPEN; use second user's token for requests marked (player)]
+59. Submit Join Request                            → 201, join_request_id saved, status = PENDING  (player)
+60. Submit Join Request — Not Found                → 404 TOURNAMENT_NOT_FOUND
+61. Submit Join Request — Registration Not Open    → 409 REGISTRATION_NOT_OPEN (reset to DRAFT first, restore after)
+62. Submit Join Request — Owner Blocked            → 409 CANNOT_JOIN_OWN_TOURNAMENT (owner's token)
+63. Submit Join Request — Already Participant      → 409 ALREADY_A_PARTICIPANT (seed participant first, clean up after)
+64. Submit Join Request — Duplicate Pending        → 409 PENDING_JOIN_REQUEST_EXISTS (send 59 twice)
+65. List Join Requests                             → 200, array with the pending request (owner's token)
+66. List Join Requests — Not Owner                 → 403 FORBIDDEN (player's token)
+67. List Join Requests — Not Found                 → 404 TOURNAMENT_NOT_FOUND
+68. Approve Join Request                           → 200, status = APPROVED; player appears in List Participants (owner's token)
+    [Create fresh join request for next tests]
+69. Reject Join Request                            → 200, status = REJECTED; no participant created (owner's token)
+    [Create fresh join request for next tests]
+70. Cancel Join Request                            → 200, status = CANCELLED (player's token)
+71. Approve Join Request — Not Owner               → 403 FORBIDDEN (player's token tries to approve)
+72. Cancel Join Request — Not Requester            → 403 FORBIDDEN (owner's token tries to cancel)
+73. Update Join Request — Not Pending              → 409 JOIN_REQUEST_NOT_PENDING (run after 69 or 70)
+74. Update Join Request — Not Found                → 404 JOIN_REQUEST_NOT_FOUND
+
+--- Captain Requests ---
+    [Pre-condition: tournament is REGISTRATION_OPEN; second user is an APPROVED participant]
+75. Submit Captain Request                         → 201, captain_request_id saved, status = PENDING  (player)
+76. Submit Captain Request — Not Found             → 404 TOURNAMENT_NOT_FOUND
+77. Submit Captain Request — Registration Not Open → 409 REGISTRATION_NOT_OPEN (reset to DRAFT first, restore after)
+78. Submit Captain Request — Not Participant       → 403 NOT_A_PARTICIPANT (owner's token)
+79. Submit Captain Request — Duplicate             → 409 CAPTAIN_REQUEST_ALREADY_EXISTS (send 75 twice)
+80. List Captain Requests                          → 200, array with the pending request (owner's token)
+81. List Captain Requests — Not Owner              → 403 FORBIDDEN (player's token)
+82. Reject Captain Request                         → 200, status = REJECTED (owner's token)
+    [Seed a new participant / captain request for next test]
+83. Cancel Captain Request                         → 200, status = CANCELLED (participant's token)
+84. Update Captain Request — Not Pending           → 409 CAPTAIN_REQUEST_NOT_PENDING (run after 82 or 83)
+85. Update Captain Request — Not Found             → 404 CAPTAIN_REQUEST_NOT_FOUND
+86. Re-submit After Cancellation                   → 409 CAPTAIN_REQUEST_ALREADY_EXISTS (full UNIQUE blocks re-submit)
 ```
 
 ---
