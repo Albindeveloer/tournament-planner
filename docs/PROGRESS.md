@@ -345,7 +345,7 @@ M8.9 Captain Requests — COMPLETED
 
 Current Task
 
-M8.10 — TBD
+M8.10 — Team Creation
 
 ---
 
