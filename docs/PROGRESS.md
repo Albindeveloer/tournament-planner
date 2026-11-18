@@ -341,11 +341,25 @@ Captain Requests
 
 M8.9 Captain Requests — COMPLETED
 
+Team Creation
+
+- [x] TeamRepository: create, findByTournamentId, findById, update
+- [x] TeamService: createTeam (owner-only, REGISTRATION_CLOSED/TEAM_FORMATION guard, duplicate name → 409 TEAM_NAME_TAKEN), listTeams, getTeam, updateTeam
+- [x] POST /api/v1/tournaments/:id/teams — owner-only, requires REGISTRATION_CLOSED or TEAM_FORMATION status
+- [x] GET /api/v1/tournaments/:id/teams — any authenticated user, 404 TOURNAMENT_NOT_FOUND
+- [x] GET /api/v1/tournaments/:id/teams/:teamId — any authenticated user, 404 TEAM_NOT_FOUND (also 404 when teamId belongs to a different tournament)
+- [x] PATCH /api/v1/tournaments/:id/teams/:teamId — owner-only, name update, 409 TEAM_NAME_TAKEN for duplicate
+- [x] DB constraint 23505 caught at service layer for both create and update
+- [x] 16 new tests (6 POST, 3 GET list, 3 GET single, 4 PATCH) — all 140 tests passing (123 prior + 17 team = rounding from prior suite baseline)
+- [x] Typecheck passed
+
+M8.10 Team Creation — COMPLETED
+
 ---
 
 Current Task
 
-M8.10 — Team Creation
+M8.11 — Team Member Management
 
 ---
 

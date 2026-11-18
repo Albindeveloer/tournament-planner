@@ -29,8 +29,8 @@ npm test --workspace=@tournament-planner/tournament-service
 
 Expected output:
 ```
-Test Files  7 passed (7)
-      Tests  123 passed (123)
+Test Files  8 passed (8)
+      Tests  140 passed (140)
 ```
 
 ---
@@ -103,6 +103,7 @@ All tournament requests go through the gateway. Do not use `Auth Service Local` 
 | `invitation_id` | *(leave empty)* | *(leave empty)* |
 | `join_request_id` | *(leave empty)* | *(leave empty)* |
 | `captain_request_id` | *(leave empty)* | *(leave empty)* |
+| `team_id` | *(leave empty)* | *(leave empty)* |
 
 4. Click **Save**.
 
@@ -119,6 +120,7 @@ Your `Api Gateway Local` environment now has these variables:
 | `invitation_id` | Filled automatically after Create Invitation (see Request 40) |
 | `join_request_id` | Filled automatically after Submit Join Request (see Request 58) |
 | `captain_request_id` | Filled automatically after Submit Captain Request (see Request 74) |
+| `team_id` | Filled automatically after Create Team (see Request 87) |
 
 > **Tip:** Every test in Part 2 assumes you run **Request 1 — Create Tournament** first so that `tournament_id` is populated. If you restart Postman or clear the environment, run Request 1 again before the GET/PATCH requests.
 
@@ -2456,6 +2458,362 @@ Expected: **409 Conflict**
 
 ---
 
+---
+
+---
+
+#### Request 87 — Create Team
+
+> **Pre-condition:** Create a fresh tournament (run Request 1). Close registration via Request 29 or:
+> ```sql
+> UPDATE tournaments SET status = 'REGISTRATION_CLOSED' WHERE id = '<your_tournament_id>';
+> ```
+
+| Field | Value |
+|---|---|
+| Name | `Create Team` |
+| Method | `POST` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/teams` |
+
+Authorization: Bearer Token → `{{access_token}}`.
+
+Body → raw → JSON:
+```json
+{
+  "name": "Team Alpha"
+}
+```
+
+Scripts → Post-response:
+```javascript
+const body = pm.response.json();
+if (body.data && body.data.team) {
+  pm.environment.set("team_id", body.data.team.id);
+}
+```
+
+Expected response — **201 Created**:
+```json
+{
+  "data": {
+    "team": {
+      "id": "<uuid>",
+      "tournament_id": "{{tournament_id}}",
+      "name": "Team Alpha",
+      "status": "FORMING",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `FORMING` — the initial status for all newly created teams
+- `tournament_id` matches your environment variable
+- `team_id` is now saved — open the `Api Gateway Local` environment and confirm the Current Value column shows a UUID
+
+---
+
+#### Request 88 — Create Team — Not Owner → 403
+
+Duplicate Request 87. Name it `Create Team — Not Owner`.
+
+Authorization tab → Type: **Bearer Token** → Token: use a **different user's** access token.
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can create teams",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 89 — Create Team — Wrong Status → 409
+
+> **Pre-condition:** Create a fresh tournament (run Request 1). The tournament is in `DRAFT` status.
+
+Duplicate Request 87. Name it `Create Team — Wrong Status`.
+
+Use the new tournament's ID (update `tournament_id` in your environment or change the URL directly).
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "INVALID_TOURNAMENT_STATUS",
+    "message": "Teams can only be created when registration is closed",
+    "details": null
+  }
+}
+```
+
+> Teams can only be created when the tournament is in `REGISTRATION_CLOSED` or `TEAM_FORMATION`. Any earlier status (DRAFT, REGISTRATION_OPEN) is rejected.
+
+---
+
+#### Request 90 — Create Team — Duplicate Name → 409
+
+> **Pre-condition:** Run Request 87 so "Team Alpha" already exists.
+
+Duplicate Request 87. Name it `Create Team — Duplicate Name`.
+
+Send it again **with the same name** without changing anything.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "TEAM_NAME_TAKEN",
+    "message": "A team with that name already exists in this tournament",
+    "details": null
+  }
+}
+```
+
+> Team names must be unique within a tournament. The same name is allowed in a different tournament — the uniqueness is scoped per tournament.
+
+---
+
+#### Request 91 — Create Team — Tournament Not Found → 404
+
+Duplicate Request 87. Name it `Create Team — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/00000000-0000-0000-0000-000000000099/teams
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "TOURNAMENT_NOT_FOUND",
+    "message": "Tournament not found",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 92 — List Teams
+
+> **Pre-condition:** Run Request 87 to create at least one team. `tournament_id` and `team_id` are set.
+
+| Field | Value |
+|---|---|
+| Name | `List Teams` |
+| Method | `GET` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/teams` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": [
+    {
+      "id": "{{team_id}}",
+      "tournament_id": "{{tournament_id}}",
+      "name": "Team Alpha",
+      "status": "FORMING",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  ]
+}
+```
+
+**What to verify:**
+- `data` is an array
+- Each team belongs to `{{tournament_id}}`
+- Create a second team ("Team Beta") via Request 87, then run List Teams again — the array should show both
+
+---
+
+#### Request 93 — List Teams — Tournament Not Found → 404
+
+Duplicate Request 92. Name it `List Teams — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/00000000-0000-0000-0000-000000000099/teams
+```
+
+Expected: **404 Not Found** with `TOURNAMENT_NOT_FOUND`.
+
+---
+
+#### Request 94 — Get Team
+
+| Field | Value |
+|---|---|
+| Name | `Get Team` |
+| Method | `GET` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/teams/{{team_id}}` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "team": {
+      "id": "{{team_id}}",
+      "tournament_id": "{{tournament_id}}",
+      "name": "Team Alpha",
+      "status": "FORMING",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- `id` matches `team_id` in your environment
+- `tournament_id` matches your tournament
+
+---
+
+#### Request 95 — Get Team — Not Found → 404
+
+Duplicate Request 94. Name it `Get Team — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/teams/00000000-0000-0000-0000-000000000099
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "TEAM_NOT_FOUND",
+    "message": "Team not found",
+    "details": null
+  }
+}
+```
+
+> This also fires when the team ID is valid but belongs to a different tournament — the service checks both existence and tournament ownership.
+
+---
+
+#### Request 96 — Update Team Name
+
+> **Pre-condition:** Run Request 87. `team_id` is set and the tournament is `REGISTRATION_CLOSED`.
+
+| Field | Value |
+|---|---|
+| Name | `Update Team` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/teams/{{team_id}}` |
+
+Authorization: Bearer Token → `{{access_token}}`.
+
+Body → raw → JSON:
+```json
+{
+  "name": "Team Omega"
+}
+```
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "team": {
+      "id": "{{team_id}}",
+      "tournament_id": "{{tournament_id}}",
+      "name": "Team Omega",
+      "status": "FORMING",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- `name` is now `"Team Omega"`
+- `status` is still `FORMING` — PATCH cannot change team status
+- `updated_at` is newer than `created_at`
+
+---
+
+#### Request 97 — Update Team — Not Owner → 403
+
+Duplicate Request 96. Name it `Update Team — Not Owner`.
+
+Authorization tab → Type: **Bearer Token** → Token: use a **different user's** access token.
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can update teams",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 98 — Update Team — Wrong Status → 409
+
+> **Pre-condition:** Create a fresh tournament (run Request 1). Do **not** close registration — leave it in `DRAFT`.
+
+Duplicate Request 96. Name it `Update Team — Wrong Status`.
+
+Update the URL to use the new tournament's ID (or update `tournament_id`), and use any team UUID in the path (even a non-existent one — the status check fires before the team lookup).
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "INVALID_TOURNAMENT_STATUS",
+    "message": "Teams can only be updated when registration is closed",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 99 — Update Team — Duplicate Name → 409
+
+> **Pre-condition:** Create two teams in the same tournament — "Team Alpha" and "Team Beta" (run Request 87 twice with different names). `team_id` should be set to Team Beta's ID.
+
+Duplicate Request 96. Name it `Update Team — Duplicate Name`.
+
+Body → raw → JSON:
+```json
+{
+  "name": "Team Alpha"
+}
+```
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "TEAM_NAME_TAKEN",
+    "message": "A team with that name already exists in this tournament",
+    "details": null
+  }
+}
+```
+
+---
+
 ### Step 7 — Run through the full sequence
 
 Work through the requests in this order to cover all scenarios:
@@ -2580,6 +2938,22 @@ Work through the requests in this order to cover all scenarios:
 84. Update Captain Request — Not Pending           → 409 CAPTAIN_REQUEST_NOT_PENDING (run after 82 or 83)
 85. Update Captain Request — Not Found             → 404 CAPTAIN_REQUEST_NOT_FOUND
 86. Re-submit After Cancellation                   → 409 CAPTAIN_REQUEST_ALREADY_EXISTS (full UNIQUE blocks re-submit)
+
+--- Teams ---
+    [Pre-condition: tournament is REGISTRATION_CLOSED; use owner's token]
+87. Create Team                                    → 201, team_id saved, status = FORMING
+88. Create Team — Not Owner                        → 403 FORBIDDEN
+89. Create Team — Wrong Status                     → 409 INVALID_TOURNAMENT_STATUS (use DRAFT tournament)
+90. Create Team — Duplicate Name                   → 409 TEAM_NAME_TAKEN (send 87 twice with same name)
+91. Create Team — Not Found                        → 404 TOURNAMENT_NOT_FOUND
+92. List Teams                                     → 200, array of teams
+93. List Teams — Not Found                         → 404 TOURNAMENT_NOT_FOUND
+94. Get Team                                       → 200, single team object
+95. Get Team — Not Found                           → 404 TEAM_NOT_FOUND
+96. Update Team                                    → 200, name updated, status unchanged
+97. Update Team — Not Owner                        → 403 FORBIDDEN
+98. Update Team — Wrong Status                     → 409 INVALID_TOURNAMENT_STATUS (use DRAFT tournament)
+99. Update Team — Duplicate Name                   → 409 TEAM_NAME_TAKEN (rename Team Beta to existing Team Alpha)
 ```
 
 ---
