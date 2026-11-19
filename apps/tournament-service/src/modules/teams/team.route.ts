@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { createTeam, listTeams, getTeam, updateTeam } from './team.controller.js';
+import { createTeam, listTeams, getTeam, updateTeam, finalizeTeams } from './team.controller.js';
 import { listMembers, addMember, updateMember, removeMember } from './team-member.controller.js';
 
 const uuidParam = { type: 'string', format: 'uuid' };
@@ -155,5 +155,19 @@ export const teamRoutes = async (app: FastifyInstance): Promise<void> => {
       },
     },
     removeMember,
+  );
+
+  app.post(
+    '/:id/finalize-teams',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: uuidParam },
+        },
+      },
+    },
+    finalizeTeams,
   );
 };

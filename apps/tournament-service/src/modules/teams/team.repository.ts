@@ -18,6 +18,12 @@ export type UpdateTeamParams = {
   name?: string;
 };
 
+export type TeamSummary = {
+  team_id: string;
+  member_count: number;
+  captain_count: number;
+};
+
 export class TeamRepository {
   async create(params: CreateTeamParams): Promise<Team> {
     const result = await pool.query<Team>(
@@ -54,6 +60,24 @@ export class TeamRepository {
       [id, params.name],
     );
     return result.rows[0] ?? null;
+  }
+
+  async findTeamSummaries(tournamentId: string): Promise<TeamSummary[]> {
+    const result = await pool.query<{ team_id: string; member_count: string; captain_count: string }>(
+      `SELECT t.id AS team_id,
+              COUNT(tm.id) AS member_count,
+              COUNT(CASE WHEN tm.member_role = 'CAPTAIN' THEN 1 END) AS captain_count
+       FROM teams t
+       LEFT JOIN team_members tm ON tm.team_id = t.id
+       WHERE t.tournament_id = $1
+       GROUP BY t.id`,
+      [tournamentId],
+    );
+    return result.rows.map((r) => ({
+      team_id: r.team_id,
+      member_count: parseInt(r.member_count, 10),
+      captain_count: parseInt(r.captain_count, 10),
+    }));
   }
 }
 

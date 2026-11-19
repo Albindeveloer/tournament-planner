@@ -370,11 +370,22 @@ Team Member Management
 
 M8.11 Team Member Management — COMPLETED
 
+Finalize Teams
+
+- [x] TeamRepository: findTeamSummaries (single aggregate SQL — member_count + captain_count per team)
+- [x] TeamService: finalizeTeams — owner check, status guard (REGISTRATION_CLOSED | TEAM_FORMATION), team count vs number_of_teams, power-of-two validation for KNOCKOUT, per-team member count and captain validation
+- [x] Transactional commit: UPDATE teams SET status = 'READY' + UPDATE tournaments SET status = 'TEAMS_FINALIZED' in a single BEGIN/COMMIT
+- [x] POST /api/v1/tournaments/:id/finalize-teams — owner-only, no body
+- [x] 10 new tests (success from REGISTRATION_CLOSED, success from TEAM_FORMATION, 404 not found, 403 not owner, 409 wrong status DRAFT, 409 already TEAMS_FINALIZED, 409 too few teams, 409 team missing members, 409 team missing captain, 409 non-power-of-two) — all 172 tests passing (162 prior + 10)
+- [x] Typecheck passed
+
+M8.12 Finalize Teams — COMPLETED
+
 ---
 
 Current Task
 
-M8.12 — Finalize Teams
+M8.13 — Tournament Service Complete / Manual Testing Update
 
 ---
 
