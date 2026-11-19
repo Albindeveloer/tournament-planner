@@ -29,8 +29,8 @@ npm test --workspace=@tournament-planner/tournament-service
 
 Expected output:
 ```
-Test Files  9 passed (9)
-      Tests  162 passed (162)
+Test Files  10 passed (10)
+      Tests  172 passed (172)
 ```
 
 ---
@@ -3318,6 +3318,258 @@ Expected: **404 Not Found**
 
 ---
 
+---
+
+#### Request 118 — Finalize Teams (success)
+
+This is the main lifecycle step that closes team formation. All teams must be fully staffed with the right number of members and exactly one captain before the tournament can progress.
+
+> **Pre-condition:** You need a tournament that is fully assembled and ready to finalize. The simplest setup is a 1v1 tournament with 2 teams — each team needs exactly 1 CAPTAIN/MAIN member.
+>
+> Run this setup SQL against `tournament_db`:
+> ```sql
+> -- Use the tournament_id already in your environment (must be REGISTRATION_CLOSED)
+> UPDATE tournaments SET status = 'REGISTRATION_CLOSED', team_size = 1, number_of_teams = 2 WHERE id = '<your_tournament_id>';
+>
+> -- Seed two approved participants
+> INSERT INTO tournament_participants (tournament_id, user_id)
+> VALUES ('<your_tournament_id>', 'aaaaaaaa-0000-0000-0000-000000000001'),
+>        ('<your_tournament_id>', 'bbbbbbbb-0000-0000-0000-000000000001')
+> RETURNING id;
+> ```
+> Copy both returned participant IDs — you will need them below.
+>
+> Then create two teams (run Request 87 twice — name them "Alpha" and "Beta"). Note both team IDs.
+>
+> Add one CAPTAIN/MAIN member to each team (run Request 100 twice — once per team, once per participant, using `member_role: "CAPTAIN"` and `squad_status: "MAIN"`).
+
+| Field | Value |
+|---|---|
+| Name | `Finalize Teams` |
+| Method | `POST` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/finalize-teams` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "tournament": {
+      "id": "{{tournament_id}}",
+      "status": "TEAMS_FINALIZED",
+      "team_size": 1,
+      "number_of_teams": 2,
+      ...
+    }
+  }
+}
+```
+
+**What to verify:**
+- `status` is `TEAMS_FINALIZED`
+- `updated_at` is newer than before
+- Run Request 92 (List Teams) — both teams now show `"status": "READY"` instead of `"FORMING"`
+
+> **Why this matters:** This is the gate between team formation and competition setup. The service atomically validates every team, then updates all teams to READY and the tournament to TEAMS_FINALIZED in a single database transaction. If anything is wrong with any team, the entire operation is rejected — the tournament stays in its current status and no team is changed.
+
+---
+
+#### Request 119 — Finalize Teams — Not Owner → 403
+
+Duplicate Request 118. Name it `Finalize Teams — Not Owner`.
+
+> **Pre-condition:** Same fully-assembled tournament from Request 118 (re-run setup if already finalized).
+
+Authorization tab → Type: **Bearer Token** → Token: use a **different user's** access token.
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can finalize teams",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 120 — Finalize Teams — Tournament Not Found → 404
+
+Duplicate Request 118. Name it `Finalize Teams — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/00000000-0000-0000-0000-000000000099/finalize-teams
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "TOURNAMENT_NOT_FOUND",
+    "message": "Tournament not found",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 121 — Finalize Teams — Wrong Status → 409
+
+> **Pre-condition:** Create a fresh tournament (run Request 1). Leave it in `DRAFT` — do not close registration.
+
+Duplicate Request 118. Name it `Finalize Teams — Wrong Status`.
+
+Update the URL to use the new `tournament_id` in `DRAFT` status.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "INVALID_STATUS_TRANSITION",
+    "message": "Cannot finalize teams from status DRAFT",
+    "details": null
+  }
+}
+```
+
+> Finalization is only allowed from `REGISTRATION_CLOSED` or `TEAM_FORMATION`. Any earlier status is rejected.
+
+---
+
+#### Request 122 — Finalize Teams — Not Enough Teams → 409
+
+> **Pre-condition:** A tournament with `number_of_teams: 2` but only 1 team created.
+>
+> ```sql
+> UPDATE tournaments SET status = 'REGISTRATION_CLOSED', team_size = 1, number_of_teams = 2 WHERE id = '<your_tournament_id>';
+> ```
+>
+> Create only **one** team (run Request 87 once). Seed one participant and add them as CAPTAIN/MAIN (Request 100). Do not create a second team.
+
+Duplicate Request 118. Name it `Finalize Teams — Not Enough Teams`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "TEAMS_INCOMPLETE",
+    "message": "Expected 2 teams but found 1",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 123 — Finalize Teams — Team Missing Members → 409
+
+> **Pre-condition:** A tournament with `team_size: 2` (each team needs 2 members), 2 teams created, but one team has only 1 member.
+>
+> ```sql
+> UPDATE tournaments SET status = 'REGISTRATION_CLOSED', team_size = 2, number_of_teams = 2 WHERE id = '<your_tournament_id>';
+> ```
+>
+> Seed 3 participants. Create 2 teams. Add 2 members to Team Alpha (1 CAPTAIN/MAIN + 1 PLAYER/MAIN). Add only 1 member to Team Beta (1 CAPTAIN/MAIN — missing the second PLAYER/MAIN).
+
+Duplicate Request 118. Name it `Finalize Teams — Team Missing Members`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "TEAMS_INCOMPLETE",
+    "message": "Each team must have exactly 2 member(s)",
+    "details": null
+  }
+}
+```
+
+> The required member count per team is `team_size` + 1 (if `substitutes_enabled` and `team_size > 1`). For a 2v2 without substitutes, that is 2.
+
+---
+
+#### Request 124 — Finalize Teams — Team Missing Captain → 409
+
+> **Pre-condition:** A tournament with `team_size: 1`, 2 teams, all members present — but one team has a `PLAYER` instead of a `CAPTAIN`.
+>
+> ```sql
+> UPDATE tournaments SET status = 'REGISTRATION_CLOSED', team_size = 1, number_of_teams = 2 WHERE id = '<your_tournament_id>';
+> ```
+>
+> Seed 2 participants. Create 2 teams. Add 1 CAPTAIN/MAIN to Team Alpha. Add 1 **PLAYER/MAIN** (not CAPTAIN) to Team Beta.
+
+Duplicate Request 118. Name it `Finalize Teams — Team Missing Captain`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "TEAMS_INCOMPLETE",
+    "message": "Each team must have exactly one captain",
+    "details": null
+  }
+}
+```
+
+> Every team must have exactly one CAPTAIN before finalization. The captain is what identifies the team leader for the competition phase (lineup submissions, result confirmations).
+
+---
+
+#### Request 125 — Finalize Teams — Non-Power-of-Two Team Count → 409
+
+> **Pre-condition:** A tournament with `number_of_teams: 3` (not a power of 2 — invalid for KNOCKOUT), all 3 teams fully assembled with 1 CAPTAIN/MAIN each.
+>
+> ```sql
+> UPDATE tournaments SET status = 'REGISTRATION_CLOSED', team_size = 1, number_of_teams = 3 WHERE id = '<your_tournament_id>';
+> ```
+>
+> Seed 3 participants. Create 3 teams. Add 1 CAPTAIN/MAIN to each.
+
+Duplicate Request 118. Name it `Finalize Teams — Non-Power-of-Two`.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "INVALID_TEAM_COUNT",
+    "message": "Knockout tournaments require a power-of-two number of teams (2, 4, 8, 16…)",
+    "details": null
+  }
+}
+```
+
+> KNOCKOUT brackets cannot have byes in the current MVP, so valid team counts are 2, 4, 8, 16, etc. 3, 5, 6, 7, 9, … are all rejected.
+
+---
+
+#### Request 126 — Finalize Teams — Already Finalized → 409
+
+> **Pre-condition:** Run Request 118 successfully. The tournament is now `TEAMS_FINALIZED`.
+
+Duplicate Request 118. Name it `Finalize Teams — Already Finalized`.
+
+Send it again **without resetting the status**.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "INVALID_STATUS_TRANSITION",
+    "message": "Cannot finalize teams from status TEAMS_FINALIZED",
+    "details": null
+  }
+}
+```
+
+> `TEAMS_FINALIZED` is not in the allowed source statuses. The endpoint is idempotent-safe — calling it twice gives a clear error rather than silently re-running validation.
+
+---
+
 ### Step 7 — Run through the full sequence
 
 Work through the requests in this order to cover all scenarios:
@@ -3479,6 +3731,18 @@ Work through the requests in this order to cover all scenarios:
 115. Remove Team Member                            → 204 (no body); member gone from list; participant still in tournament
 116. Remove Team Member — Not Owner                → 403 FORBIDDEN
 117. Remove Team Member — Not Found                → 404 TEAM_MEMBER_NOT_FOUND
+
+--- Finalize Teams ---
+    [Pre-condition: tournament is REGISTRATION_CLOSED or TEAM_FORMATION; all teams fully assembled (correct member count + 1 captain each)]
+118. Finalize Teams                                → 200, tournament status = TEAMS_FINALIZED; all teams status = READY
+119. Finalize Teams — Not Owner                    → 403 FORBIDDEN (different user's token)
+120. Finalize Teams — Not Found                    → 404 TOURNAMENT_NOT_FOUND (non-existent UUID)
+121. Finalize Teams — Wrong Status                 → 409 INVALID_STATUS_TRANSITION (use a DRAFT tournament)
+122. Finalize Teams — Not Enough Teams             → 409 TEAMS_INCOMPLETE (create only 1 of 2 required teams)
+123. Finalize Teams — Team Missing Members         → 409 TEAMS_INCOMPLETE (team_size=2 but team has only 1 member)
+124. Finalize Teams — Team Missing Captain         → 409 TEAMS_INCOMPLETE (all members are PLAYER, none CAPTAIN)
+125. Finalize Teams — Non-Power-of-Two             → 409 INVALID_TEAM_COUNT (number_of_teams=3, format=KNOCKOUT)
+126. Finalize Teams — Already Finalized            → 409 INVALID_STATUS_TRANSITION (run 118 twice)
 ```
 
 ---
