@@ -29,8 +29,8 @@ npm test --workspace=@tournament-planner/tournament-service
 
 Expected output:
 ```
-Test Files  8 passed (8)
-      Tests  140 passed (140)
+Test Files  9 passed (9)
+      Tests  162 passed (162)
 ```
 
 ---
@@ -104,6 +104,7 @@ All tournament requests go through the gateway. Do not use `Auth Service Local` 
 | `join_request_id` | *(leave empty)* | *(leave empty)* |
 | `captain_request_id` | *(leave empty)* | *(leave empty)* |
 | `team_id` | *(leave empty)* | *(leave empty)* |
+| `member_id` | *(leave empty)* | *(leave empty)* |
 
 4. Click **Save**.
 
@@ -121,6 +122,7 @@ Your `Api Gateway Local` environment now has these variables:
 | `join_request_id` | Filled automatically after Submit Join Request (see Request 58) |
 | `captain_request_id` | Filled automatically after Submit Captain Request (see Request 74) |
 | `team_id` | Filled automatically after Create Team (see Request 87) |
+| `member_id` | Filled automatically after Add Team Member (see Request 100) |
 
 > **Tip:** Every test in Part 2 assumes you run **Request 1 — Create Tournament** first so that `tournament_id` is populated. If you restart Postman or clear the environment, run Request 1 again before the GET/PATCH requests.
 
@@ -2814,6 +2816,508 @@ Expected: **409 Conflict**
 
 ---
 
+---
+
+#### Request 100 — Add Team Member
+
+> **Pre-condition:** Create a fresh tournament (run Request 1). Close registration (Request 29 or SQL). Create a team (Request 87 — `team_id` saved). Seed an approved participant:
+> ```sql
+> INSERT INTO tournament_participants (tournament_id, user_id)
+> VALUES ('<your_tournament_id>', 'aaaaaaaa-0000-0000-0000-000000000001')
+> RETURNING id;
+> ```
+> Copy the returned `id` — you will paste it into the body below.
+
+| Field | Value |
+|---|---|
+| Name | `Add Team Member` |
+| Method | `POST` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/teams/{{team_id}}/members` |
+
+Authorization: Bearer Token → `{{access_token}}`.
+
+Body → raw → JSON:
+```json
+{
+  "participant_id": "<participant uuid from SQL above>",
+  "member_role": "PLAYER",
+  "squad_status": "MAIN"
+}
+```
+
+Scripts → Post-response:
+```javascript
+const body = pm.response.json();
+if (body.data && body.data.member) {
+  pm.environment.set("member_id", body.data.member.id);
+}
+```
+
+Expected response — **201 Created**:
+```json
+{
+  "data": {
+    "member": {
+      "id": "<uuid>",
+      "team_id": "{{team_id}}",
+      "participant_id": "<participant uuid>",
+      "member_role": "PLAYER",
+      "squad_status": "MAIN",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- `member_role` is `PLAYER` and `squad_status` is `MAIN`
+- `team_id` matches your environment variable
+- `member_id` is now saved — open the `Api Gateway Local` environment and confirm the Current Value column shows a UUID
+
+---
+
+#### Request 101 — Add Team Member — Not Owner → 403
+
+Duplicate Request 100. Name it `Add Team Member — Not Owner`.
+
+Authorization tab → Type: **Bearer Token** → Token: use a **different user's** access token.
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can manage team members",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 102 — Add Team Member — Wrong Tournament Status → 409
+
+> **Pre-condition:** Create a fresh tournament (run Request 1). Do **not** close registration — leave it in `DRAFT`.
+
+Duplicate Request 100. Name it `Add Team Member — Wrong Status`.
+
+Update the URL to use the new tournament's ID. Use any team UUID and participant UUID in the body.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "INVALID_TOURNAMENT_STATUS",
+    "message": "Team members can only be managed when registration is closed",
+    "details": null
+  }
+}
+```
+
+> Team member management is only allowed in `REGISTRATION_CLOSED` or `TEAM_FORMATION`.
+
+---
+
+#### Request 103 — Add Team Member — Participant Not Found → 404
+
+> **Pre-condition:** Tournament is `REGISTRATION_CLOSED`. `team_id` is set.
+
+Duplicate Request 100. Name it `Add Team Member — Participant Not Found`.
+
+Change the body:
+```json
+{
+  "participant_id": "00000000-0000-0000-0000-000000000099",
+  "member_role": "PLAYER",
+  "squad_status": "MAIN"
+}
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "PARTICIPANT_NOT_FOUND",
+    "message": "Participant not found or not approved in this tournament",
+    "details": null
+  }
+}
+```
+
+> This also fires when the participant UUID exists but belongs to a different tournament.
+
+---
+
+#### Request 104 — Add Team Member — Team Full → 409
+
+> **Pre-condition:** Tournament was created with `team_size: 2` and `substitutes_enabled: false` (capacity = 2 per team). Seed two approved participants and add both to the team using Request 100 twice. Then seed a third participant.
+
+Duplicate Request 100. Name it `Add Team Member — Team Full`.
+
+Use the third participant's ID in the body.
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "TEAM_FULL",
+    "message": "Team has reached maximum capacity",
+    "details": null
+  }
+}
+```
+
+> Per-team capacity = `team_size` + 1 (if `substitutes_enabled` and `team_size > 1`). For a 2v2 without substitutes, that is 2.
+
+---
+
+#### Request 105 — Add Team Member — Already In a Team → 409
+
+> **Pre-condition:** Run Request 100 to add participant A to Team Alpha. Create a second team ("Team Beta") via Request 87 and save that `team_id` temporarily.
+
+Duplicate Request 100. Name it `Add Team Member — Already In Team`.
+
+Change the URL `{{team_id}}` to Team Beta's ID, but keep `participant_id` the same (participant A, who is already on Team Alpha).
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "ALREADY_IN_TEAM",
+    "message": "This participant is already assigned to a team in this tournament",
+    "details": null
+  }
+}
+```
+
+> A participant can only belong to one team per tournament. The DB enforces this with a `UNIQUE(participant_id)` constraint on `team_members`.
+
+---
+
+#### Request 106 — Add Team Member — Captain Already Assigned → 409
+
+> **Pre-condition:** Seed a participant and add them as `CAPTAIN`/`MAIN` using Request 100. Then seed a second participant.
+
+Duplicate Request 100. Name it `Add Team Member — Captain Already Assigned`.
+
+Use the second participant's ID in the body with:
+```json
+{
+  "participant_id": "<second participant uuid>",
+  "member_role": "CAPTAIN",
+  "squad_status": "MAIN"
+}
+```
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "CAPTAIN_ALREADY_ASSIGNED",
+    "message": "This team already has a captain",
+    "details": null
+  }
+}
+```
+
+> There is exactly one captain per team, enforced by a partial unique index on `(team_id) WHERE member_role = 'CAPTAIN'`.
+
+---
+
+#### Request 107 — Add Team Member — Substitute Already Assigned → 409
+
+> **Pre-condition:** Create a tournament with `substitutes_enabled: true` and `team_size: 2` (capacity = 3). Seed two participants. Add one as `PLAYER`/`MAIN` and one as `PLAYER`/`SUBSTITUTE`. Then seed a third participant.
+
+Duplicate Request 100. Name it `Add Team Member — Substitute Already Assigned`.
+
+Use the third participant's ID with:
+```json
+{
+  "participant_id": "<third participant uuid>",
+  "member_role": "PLAYER",
+  "squad_status": "SUBSTITUTE"
+}
+```
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "SUBSTITUTE_ALREADY_ASSIGNED",
+    "message": "This team already has a substitute",
+    "details": null
+  }
+}
+```
+
+> There is at most one substitute per team, enforced by a partial unique index on `(team_id) WHERE squad_status = 'SUBSTITUTE'`.
+
+---
+
+#### Request 108 — Add Team Member — Captain as Substitute → 409
+
+> **Pre-condition:** Tournament is `REGISTRATION_CLOSED`. `team_id` is set. Seed an approved participant.
+
+Duplicate Request 100. Name it `Add Team Member — Captain as Substitute`.
+
+Body:
+```json
+{
+  "participant_id": "<participant uuid>",
+  "member_role": "CAPTAIN",
+  "squad_status": "SUBSTITUTE"
+}
+```
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "CAPTAIN_CANNOT_BE_SUBSTITUTE",
+    "message": "A captain must have squad status MAIN",
+    "details": null
+  }
+}
+```
+
+> This is enforced at the database level by a `CHECK(member_role != 'CAPTAIN' OR squad_status = 'MAIN')` constraint. A captain must always be a main squad player.
+
+---
+
+#### Request 109 — List Team Members
+
+| Field | Value |
+|---|---|
+| Name | `List Team Members` |
+| Method | `GET` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/teams/{{team_id}}/members` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+Expected response — **200 OK**:
+```json
+{
+  "data": [
+    {
+      "id": "{{member_id}}",
+      "team_id": "{{team_id}}",
+      "participant_id": "<participant uuid>",
+      "member_role": "PLAYER",
+      "squad_status": "MAIN",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  ]
+}
+```
+
+**What to verify:**
+- `data` is an array
+- Each member's `team_id` matches `{{team_id}}`
+- An empty team returns `[]`, not 404
+
+---
+
+#### Request 110 — List Team Members — Tournament Not Found → 404
+
+Duplicate Request 109. Name it `List Team Members — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/00000000-0000-0000-0000-000000000099/teams/00000000-0000-0000-0000-000000000099/members
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "TOURNAMENT_NOT_FOUND",
+    "message": "Tournament not found",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 111 — Update Team Member (promote to captain)
+
+> **Pre-condition:** Run Request 100 to add participant A as `PLAYER`/`MAIN`. `member_id` is saved.
+
+| Field | Value |
+|---|---|
+| Name | `Update Team Member` |
+| Method | `PATCH` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/teams/{{team_id}}/members/{{member_id}}` |
+
+Authorization: Bearer Token → `{{access_token}}`.
+
+Body → raw → JSON:
+```json
+{
+  "member_role": "CAPTAIN"
+}
+```
+
+Expected response — **200 OK**:
+```json
+{
+  "data": {
+    "member": {
+      "id": "{{member_id}}",
+      "team_id": "{{team_id}}",
+      "participant_id": "<participant uuid>",
+      "member_role": "CAPTAIN",
+      "squad_status": "MAIN",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  }
+}
+```
+
+**What to verify:**
+- `member_role` is now `CAPTAIN`
+- `squad_status` is unchanged (`MAIN`) — PATCH only updates the fields you send
+- `updated_at` is newer than `created_at`
+
+> You can also send only `squad_status` to change a member's squad assignment without touching their role.
+
+---
+
+#### Request 112 — Update Team Member — Not Owner → 403
+
+Duplicate Request 111. Name it `Update Team Member — Not Owner`.
+
+Authorization tab → Type: **Bearer Token** → Token: use a **different user's** access token.
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can manage team members",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 113 — Update Team Member — Not Found → 404
+
+Duplicate Request 111. Name it `Update Team Member — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/teams/{{team_id}}/members/00000000-0000-0000-0000-000000000099
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "TEAM_MEMBER_NOT_FOUND",
+    "message": "Team member not found",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 114 — Update Team Member — Captain Already Assigned → 409
+
+> **Pre-condition:** Add two participants to the team. Promote the first to `CAPTAIN` via Request 111. `member_id` should be set to the **second** member's ID (a `PLAYER`).
+
+Duplicate Request 111. Name it `Update Team Member — Captain Already Assigned`.
+
+Body:
+```json
+{
+  "member_role": "CAPTAIN"
+}
+```
+
+Expected: **409 Conflict**
+```json
+{
+  "error": {
+    "code": "CAPTAIN_ALREADY_ASSIGNED",
+    "message": "This team already has a captain",
+    "details": null
+  }
+}
+```
+
+> To reassign the captain: first demote the current captain to `PLAYER` (send `{ "member_role": "PLAYER" }` on the current captain's record), then promote the new one.
+
+---
+
+#### Request 115 — Remove Team Member
+
+> **Pre-condition:** Run Request 100 to add a participant. `member_id` is saved.
+
+| Field | Value |
+|---|---|
+| Name | `Remove Team Member` |
+| Method | `DELETE` |
+| URL | `{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/teams/{{team_id}}/members/{{member_id}}` |
+
+No body. Authorization: Bearer Token → `{{access_token}}`.
+
+Expected response — **204 No Content** (empty body).
+
+**What to verify:**
+- Response is `204` with no body
+- Run Request 109 (List Team Members) — the member is gone
+- The participant still exists in `tournament_participants` — removing from a team does not withdraw them from the tournament
+- You can re-add the same participant to this team (or any other team) after removal — the `UNIQUE(participant_id)` constraint is released
+
+---
+
+#### Request 116 — Remove Team Member — Not Owner → 403
+
+Duplicate Request 115. Name it `Remove Team Member — Not Owner`.
+
+Authorization tab → Type: **Bearer Token** → Token: use a **different user's** access token.
+
+Expected: **403 Forbidden**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Only the tournament owner can manage team members",
+    "details": null
+  }
+}
+```
+
+---
+
+#### Request 117 — Remove Team Member — Not Found → 404
+
+Duplicate Request 115. Name it `Remove Team Member — Not Found`.
+
+Change the URL to:
+```
+{{gateway_url}}/api/v1/tournaments/{{tournament_id}}/teams/{{team_id}}/members/00000000-0000-0000-0000-000000000099
+```
+
+Expected: **404 Not Found**
+```json
+{
+  "error": {
+    "code": "TEAM_MEMBER_NOT_FOUND",
+    "message": "Team member not found",
+    "details": null
+  }
+}
+```
+
+---
+
 ### Step 7 — Run through the full sequence
 
 Work through the requests in this order to cover all scenarios:
@@ -2954,6 +3458,27 @@ Work through the requests in this order to cover all scenarios:
 97. Update Team — Not Owner                        → 403 FORBIDDEN
 98. Update Team — Wrong Status                     → 409 INVALID_TOURNAMENT_STATUS (use DRAFT tournament)
 99. Update Team — Duplicate Name                   → 409 TEAM_NAME_TAKEN (rename Team Beta to existing Team Alpha)
+
+--- Team Members ---
+    [Pre-condition: tournament is REGISTRATION_CLOSED; team exists (team_id saved); seed approved participants via SQL; use owner's token]
+100. Add Team Member                               → 201, member_id saved, member_role=PLAYER, squad_status=MAIN
+101. Add Team Member — Not Owner                   → 403 FORBIDDEN
+102. Add Team Member — Wrong Status                → 409 INVALID_TOURNAMENT_STATUS (use DRAFT tournament)
+103. Add Team Member — Participant Not Found        → 404 PARTICIPANT_NOT_FOUND (use non-existent participant UUID)
+104. Add Team Member — Team Full                   → 409 TEAM_FULL (fill team to capacity, then try one more)
+105. Add Team Member — Already In Team             → 409 ALREADY_IN_TEAM (add same participant to a second team)
+106. Add Team Member — Captain Already Assigned    → 409 CAPTAIN_ALREADY_ASSIGNED (add second CAPTAIN to team)
+107. Add Team Member — Substitute Already Assigned → 409 SUBSTITUTE_ALREADY_ASSIGNED (add second SUBSTITUTE; tournament needs substitutes_enabled: true)
+108. Add Team Member — Captain as Substitute       → 409 CAPTAIN_CANNOT_BE_SUBSTITUTE (member_role=CAPTAIN, squad_status=SUBSTITUTE)
+109. List Team Members                             → 200, array of members
+110. List Team Members — Not Found                 → 404 TOURNAMENT_NOT_FOUND
+111. Update Team Member (promote to captain)       → 200, member_role=CAPTAIN, squad_status unchanged
+112. Update Team Member — Not Owner                → 403 FORBIDDEN
+113. Update Team Member — Not Found                → 404 TEAM_MEMBER_NOT_FOUND
+114. Update Team Member — Captain Already Assigned → 409 CAPTAIN_ALREADY_ASSIGNED (promote second member when captain already exists)
+115. Remove Team Member                            → 204 (no body); member gone from list; participant still in tournament
+116. Remove Team Member — Not Owner                → 403 FORBIDDEN
+117. Remove Team Member — Not Found                → 404 TEAM_MEMBER_NOT_FOUND
 ```
 
 ---
