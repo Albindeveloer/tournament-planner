@@ -53,3 +53,12 @@ export const updateTeam = async (
   );
   await reply.status(200).send({ data: { team } });
 };
+
+export const finalizeTeams = async (
+  request: FastifyRequest<TournamentParams>,
+  reply: FastifyReply,
+): Promise<void> => {
+  const callerId = getUserId(request);
+  const tournament = await teamService.finalizeTeams(callerId, request.params.id);
+  await reply.status(200).send({ data: { tournament } });
+};

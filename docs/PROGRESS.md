@@ -14,13 +14,13 @@ The complete project specification is available in:
 
 Current Milestone
 
-M8 — Tournament Service (in progress)
+M9 — Auction Service (pending)
 
 ---
 
 Current Service
 
-Tournament Service
+Auction Service
 
 ---
 
@@ -355,11 +355,45 @@ Team Creation
 
 M8.10 Team Creation — COMPLETED
 
+Team Member Management
+
+- [x] TeamMemberRepository: create, findByTeamId, findById, countByTeamId, update (dynamic SET), remove
+- [x] TeamMemberService: listMembers, addMember (capacity check, participant-belongs-to-tournament guard), updateMember, removeMember
+- [x] Per-team capacity derived from tournament config: team_size (+ 1 if substitutes_enabled and team_size > 1)
+- [x] DB constraint disambiguation: 23505 → ALREADY_IN_TEAM / CAPTAIN_ALREADY_ASSIGNED / SUBSTITUTE_ALREADY_ASSIGNED by constraint name; 23514 CHECK → CAPTAIN_CANNOT_BE_SUBSTITUTE
+- [x] GET /api/v1/tournaments/:id/teams/:teamId/members — any authenticated user
+- [x] POST /api/v1/tournaments/:id/teams/:teamId/members — owner-only, body: { participant_id, member_role, squad_status }
+- [x] PATCH /api/v1/tournaments/:id/teams/:teamId/members/:memberId — owner-only, partial update
+- [x] DELETE /api/v1/tournaments/:id/teams/:teamId/members/:memberId — owner-only, 204 No Content
+- [x] 22 new tests (12 POST, 3 GET, 4 PATCH, 3 DELETE) — all 162 tests passing (140 prior + 22 team members)
+- [x] Typecheck passed
+
+M8.11 Team Member Management — COMPLETED
+
+Finalize Teams
+
+- [x] TeamRepository: findTeamSummaries (single aggregate SQL — member_count + captain_count per team)
+- [x] TeamService: finalizeTeams — owner check, status guard (REGISTRATION_CLOSED | TEAM_FORMATION), team count vs number_of_teams, power-of-two validation for KNOCKOUT, per-team member count and captain validation
+- [x] Transactional commit: UPDATE teams SET status = 'READY' + UPDATE tournaments SET status = 'TEAMS_FINALIZED' in a single BEGIN/COMMIT
+- [x] POST /api/v1/tournaments/:id/finalize-teams — owner-only, no body
+- [x] 10 new tests (success from REGISTRATION_CLOSED, success from TEAM_FORMATION, 404 not found, 403 not owner, 409 wrong status DRAFT, 409 already TEAMS_FINALIZED, 409 too few teams, 409 team missing members, 409 team missing captain, 409 non-power-of-two) — all 172 tests passing (162 prior + 10)
+- [x] Typecheck passed
+
+M8.12 Finalize Teams — COMPLETED
+
+Tournament Service Complete
+
+- [x] All 172 tests passing (10 test files)
+- [x] Typecheck passed
+- [x] Manual testing guide complete (Requests 1–126)
+
+M8.13 Tournament Service Complete — COMPLETED
+
 ---
 
 Current Task
 
-M8.11 — Team Member Management
+M9.1 — Auction Service Foundation
 
 ---
 
