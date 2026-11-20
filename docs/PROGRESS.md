@@ -14,13 +14,13 @@ The complete project specification is available in:
 
 Current Milestone
 
-M8 — Tournament Service (in progress)
+M9 — Auction Service (pending)
 
 ---
 
 Current Service
 
-Tournament Service
+Auction Service
 
 ---
 
@@ -381,11 +381,19 @@ Finalize Teams
 
 M8.12 Finalize Teams — COMPLETED
 
+Tournament Service Complete
+
+- [x] All 172 tests passing (10 test files)
+- [x] Typecheck passed
+- [x] Manual testing guide complete (Requests 1–126)
+
+M8.13 Tournament Service Complete — COMPLETED
+
 ---
 
 Current Task
 
-M8.13 — Tournament Service Complete / Manual Testing Update
+M9.1 — Auction Service Foundation
 
 ---
 
