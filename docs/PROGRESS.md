@@ -389,11 +389,28 @@ Tournament Service Complete
 
 M8.13 Tournament Service Complete — COMPLETED
 
+Auction Service Foundation
+
+- [x] Fastify application setup (app.ts)
+- [x] Server setup with graceful shutdown (server.ts)
+- [x] PostgreSQL connection pool (infrastructure/database/postgres.ts)
+- [x] Migration runner (infrastructure/database/migrate.ts)
+- [x] Health endpoint (GET /health)
+- [x] Error handling foundation (AppError, error-handler)
+- [x] Environment configuration (config/env.ts)
+- [x] TypeScript config (tsconfig.json)
+- [x] package.json with scripts (dev, build, start, migrate, test, typecheck, lint)
+- [x] .env, .env.example, .env.test
+- [x] migrations/ directory with .gitkeep placeholder
+- [x] Typecheck passed
+
+M9.1 Auction Service Foundation — COMPLETED
+
 ---
 
 Current Task
 
-M9.1 — Auction Service Foundation
+M9.2 — Auction Database Migration
 
 ---
 
