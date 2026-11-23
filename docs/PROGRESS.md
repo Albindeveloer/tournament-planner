@@ -389,11 +389,43 @@ Tournament Service Complete
 
 M8.13 Tournament Service Complete — COMPLETED
 
+Auction Service Foundation
+
+- [x] Fastify application setup (app.ts)
+- [x] Server setup with graceful shutdown (server.ts)
+- [x] PostgreSQL connection pool (infrastructure/database/postgres.ts)
+- [x] Migration runner (infrastructure/database/migrate.ts)
+- [x] Health endpoint (GET /health)
+- [x] Error handling foundation (AppError, error-handler)
+- [x] Environment configuration (config/env.ts)
+- [x] TypeScript config (tsconfig.json)
+- [x] package.json with scripts (dev, build, start, migrate, test, typecheck, lint)
+- [x] .env, .env.example, .env.test
+- [x] migrations/ directory with .gitkeep placeholder
+- [x] Typecheck passed
+
+M9.1 Auction Service Foundation — COMPLETED
+
+Auction Database Migration
+
+- [x] 001_create_auction_tables.sql — all 6 tables with full constraints
+- [x] auctions — UUID PK, tournament_id UNIQUE (cross-service, no FK), bid_increment NUMERIC with CHECK > 0, status CHECK constraints
+- [x] auction_rounds — UNIQUE(auction_id, round_number), status PENDING/IN_PROGRESS/COMPLETED/CANCELLED
+- [x] auction_bidders — team_id + captain_id (cross-service UUIDs), budget/budget_remaining NUMERIC with CHECK constraints, UNIQUE(auction_id, team_id)
+- [x] auction_lots — starting_price, current_bid/current_bidder_id (nullable until first bid), winning_bid/winning_bidder_id paired CHECK, ends_at, UNIQUE(auction_round_id, participant_id)
+- [x] bids — immutable insert-only history, FK to auction_lots and auction_bidders
+- [x] allocations — UNIQUE(auction_lot_id) + UNIQUE(auction_id, participant_id), allocation_type AUCTION/AUTO_ALLOCATION
+- [x] pgcrypto extension, all indexes (including partial index on LIVE lots)
+- [x] Migration applied to auction_db and auction_test_db
+- [x] Typecheck passed
+
+M9.2 Auction Database Migration — COMPLETED
+
 ---
 
 Current Task
 
-M9.1 — Auction Service Foundation
+M9.3 — Auction Creation
 
 ---
 
