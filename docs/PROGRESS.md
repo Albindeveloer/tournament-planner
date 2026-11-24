@@ -421,11 +421,27 @@ Auction Database Migration
 
 M9.2 Auction Database Migration — COMPLETED
 
+Auction Creation
+
+- [x] AuctionRepository: create, findById, findByTournamentId, update (dynamic SET)
+- [x] AuctionService: createAuction (defaults bid_increment to 1, 23505 → 409 AUCTION_ALREADY_EXISTS), getAuction, updateAuction (DRAFT-only guard → 409 AUCTION_NOT_MODIFIABLE)
+- [x] NUMERIC bid_increment parsed to float at repository boundary (pg returns NUMERIC as string)
+- [x] createAuctionHandler, getAuctionHandler, updateAuctionHandler controllers
+- [x] POST /api/v1/auctions — requires x-user-id, body: { tournament_id: uuid, bid_increment?: number ≥ 0.01 }
+- [x] GET /api/v1/auctions/:id — requires x-user-id
+- [x] PATCH /api/v1/auctions/:id — requires x-user-id, body: { bid_increment?: number ≥ 0.01 }, additionalProperties: false
+- [x] app.ts updated to register auctionRoutes at /api/v1/auctions
+- [x] vitest.config.ts created
+- [x] Auction creation tests (15/15 passed): create 201, status always DRAFT, default bid_increment 1, custom bid_increment, missing tournament_id 400, invalid UUID 400, bid_increment 0 → 400, unknown fields 400, duplicate tournament → 409, missing x-user-id → 401, GET existing 200, GET not found 404, PATCH bid_increment 200, PATCH unknown field 400, PATCH not found 404
+- [x] Typecheck passed
+
+M9.3 Auction Creation — COMPLETED
+
 ---
 
 Current Task
 
-M9.3 — Auction Creation
+M9.4 — Auction Lifecycle
 
 ---
 
