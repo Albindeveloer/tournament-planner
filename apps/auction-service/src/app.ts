@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import { registerErrorHandler } from './middleware/error-handler.js';
+import { auctionRoutes } from './modules/auctions/auction.route.js';
 
 export const buildApp = () => {
   const app = Fastify({
@@ -12,6 +13,8 @@ export const buildApp = () => {
   });
 
   registerErrorHandler(app);
+
+  app.register(auctionRoutes, { prefix: '/api/v1/auctions' });
 
   app.get('/health', async (_request, _reply) => {
     return {
